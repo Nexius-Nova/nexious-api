@@ -15,7 +15,6 @@
       </button>
       <input
         :id="uid"
-        ref="inputRef"
         :value="displayValue"
         type="text"
         inputmode="numeric"
@@ -67,8 +66,6 @@ const emit = defineEmits<{
 }>();
 
 const uid = computed(() => `fn-${Math.random().toString(36).slice(2, 8)}`);
-const inputRef = ref<HTMLInputElement | null>(null);
-
 const displayValue = ref(String(props.modelValue));
 
 watch(() => props.modelValue, (val) => {
