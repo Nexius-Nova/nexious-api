@@ -284,9 +284,25 @@ const doDeleteToken = async () => {
   }
 };
 
-const copyKey = (key: string) => {
-  navigator.clipboard.writeText(key);
-  toast.success('已复制到剪贴板');
+const copyKey = async (key: string) => {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(key);
+    } else {
+      // Fallback for HTTP (non-secure context)
+      const ta = document.createElement('textarea');
+      ta.value = key;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    toast.success('已复制到剪贴板');
+  } catch {
+    toast.error('复制失败');
+  }
 };
 
 const maskKey = (key: string) => {
