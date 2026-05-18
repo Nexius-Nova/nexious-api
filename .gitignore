@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# pnpm workspace — only root lockfile, sub-package lockfiles are not needed
+backend/pnpm-lock.yaml
+frontend/pnpm-lock.yaml
+package-lock.json
+backend/node_modules/
+backend/dist/
+backend/.vscode/
+frontend/node_modules/
+frontend/dist/
+frontend/.vscode/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Prisma
+/generated/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+*.cache
+
+# Temp
+temp.json
+temp.sql
+*.tmp
+
+# Logs
+*.log
+

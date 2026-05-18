@@ -1,0 +1,32 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.{ts,vue}\" --fix",
+    "format": "prettier --write \"src/**/*.{ts,vue,css}\""
+  },
+  "dependencies": {
+    "@lobehub/icons-static-svg": "^1.90.0",
+    "axios": "^1.16.1",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.34",
+    "vue-router": "^5.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.3",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/eslint-config-typescript": "^14.7.0",
+    "@vue/tsconfig": "^0.9.1",
+    "eslint": "^10.4.0",
+    "eslint-plugin-vue": "^10.9.1",
+    "prettier": "^3.8.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12",
+    "vue-tsc": "^3.2.8"
+  }
+}

@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Channel {
+  id         Int      @id @default(autoincrement())
+  name       String
+  type       String   // openai, anthropic, custom, etc.
+  baseUrl    String
+  apiKey     String
+  models     String   // Comma separated list of supported models
+  modelTypes String?  @map("model_types") // JSON: {"gpt-4":"text","dall-e-3":"image"}
+  status     Boolean  @default(true)
+  weight     Int      @default(1)
+  visibility String?  @default("private") // "public" | "private"
+  userId     Int?
+  user       User?    @relation(fields: [userId], references: [id])
+  logs       Log[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  username      String         @unique
+  email         String         @unique
+  password      String         // bcrypt hashed
+  role          String         @default("user") // "super_admin" | "admin" | "user"
+  status        Boolean        @default(true) // true=active, false=disabled
+  channels      Channel[]
+  tokens        Token[]
+  logs          Log[]
+  conversations Conversation[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Token {
+  id            Int      @id @default(autoincrement())
+  name          String
+  key           String   @unique // The unified API key
+  status        Boolean  @default(true)
+  quota         Int      @default(-1) // -1 for unlimited
+  used          Int      @default(0)
+  expiresAt     DateTime? // Token expiry date
+  allowedModels String?  // Comma-separated model whitelist, null = all
+  group         String?  // Organizational label (production, staging, dev)
+  note          String?  // Free-text note
+  userId        Int?
+  user          User?    @relation(fields: [userId], references: [id])
+  logs          Log[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Log {
+  id               Int      @id @default(autoincrement())
+  token            Token?   @relation(fields: [tokenId], references: [id])
+  tokenId          Int?
+  channel          Channel? @relation(fields: [channelId], references: [id])
+  channelId        Int?
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  ip               String?
+  userId           Int?
+  user             User?    @relation(fields: [userId], references: [id])
+  createdAt        DateTime @default(now())
+}
+
+model Conversation {
+  id             Int      @id @default(autoincrement())
+  title          String?
+  messages       String   @db.LongText
+  model          String
+  systemPrompt   String?  @map("system_prompt")
+  temperature    Float    @default(0.7)
+  maxTokens      Int      @default(4096) @map("max_tokens")
+  topP           Float    @default(1.0) @map("top_p")
+  streamEnabled  Boolean  @default(false) @map("stream_enabled")
+  debugInfo      String?  @db.LongText @map("debug_info")
+  imageUrl       String?  @map("image_url")
+  userId         Int?
+  user           User?    @relation(fields: [userId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("conversation")
+}
