@@ -249,13 +249,32 @@ const openDialog = (row: Token | null = null) => {
   dialogVisible.value = true;
 };
 
+// Whitelist: only fields allowed by CreateTokenDto / UpdateTokenDto
+const TOKEN_WHITELIST = [
+  'name', 'quota', 'status', 'group',
+  'allowedModels', 'expiresAt', 'note',
+] as const;
+
+const cleanTokenPayload = (raw: Record<string, any>) => {
+  const out: Record<string, any> = {};
+  for (const k of TOKEN_WHITELIST) {
+    if (k in raw) {
+      const v = raw[k];
+      if (k === 'expiresAt' && !v) {
+        out[k] = null;
+      } else {
+        out[k] = v;
+      }
+    }
+  }
+  return out;
+};
+
 const saveToken = async () => {
   try {
-    const payload = { ...form.value };
-    // Convert empty date string to null
-    if (!payload.expiresAt) payload.expiresAt = null;
-    if (payload.id) {
-      await api.patch(`/tokens/${payload.id}`, payload);
+    const payload = cleanTokenPayload(form.value);
+    if (form.value.id) {
+      await api.patch(`/tokens/${form.value.id}`, payload);
     } else {
       await api.post('/tokens', payload);
     }

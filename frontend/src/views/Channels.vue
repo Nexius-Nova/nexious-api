@@ -243,13 +243,31 @@ const openDialog = (row: Channel | null = null) => {
   dialogVisible.value = true;
 };
 
+// Whitelist: only fields allowed by CreateChannelDto / UpdateChannelDto
+const CHANNEL_WHITELIST = [
+  'name', 'type', 'baseUrl', 'apiKey', 'models',
+  'modelTypes', 'status', 'weight', 'visibility',
+] as const;
+
+const cleanPayload = (raw: Record<string, any>, isUpdate: boolean) => {
+  const out: Record<string, any> = {};
+  for (const k of CHANNEL_WHITELIST) {
+    if (k in raw) {
+      const v = raw[k];
+      // Skip empty apiKey on update (keep existing)
+      if (isUpdate && k === 'apiKey' && !v) continue;
+      out[k] = v;
+    }
+  }
+  return out;
+};
+
 const saveChannel = async () => {
   try {
     if (form.value.id) {
-      await api.patch(`/channels/${form.value.id}`, form.value);
+      await api.patch(`/channels/${form.value.id}`, cleanPayload(form.value, true));
     } else {
-      const { id, ...createData } = form.value;
-      await api.post('/channels', createData);
+      await api.post('/channels', cleanPayload(form.value, false));
     }
     dialogVisible.value = false;
     fetchChannels();
