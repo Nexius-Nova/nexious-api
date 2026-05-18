@@ -248,7 +248,8 @@ const saveChannel = async () => {
     if (form.value.id) {
       await api.patch(`/channels/${form.value.id}`, form.value);
     } else {
-      await api.post('/channels', form.value);
+      const { id, ...createData } = form.value;
+      await api.post('/channels', createData);
     }
     dialogVisible.value = false;
     fetchChannels();
