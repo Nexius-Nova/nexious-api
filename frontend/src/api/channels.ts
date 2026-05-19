@@ -1,5 +1,5 @@
 import api from './index';
-import type { Channel } from '../types';
+import type { Channel, BalanceSnapshot } from '../types';
 
 export const channelsApi = {
   list: () => api.get<Channel[]>('/channels').then((r) => r.data),
@@ -19,4 +19,32 @@ export const channelsApi = {
         `/channels/${id}/test`,
       )
       .then((r) => r.data),
+
+  // Balance
+  getBalance: (id: number) =>
+    api
+      .get<{
+        id: number;
+        name: string;
+        currency: string;
+        lastBalance: number | null;
+        lastBalanceAt: string | null;
+        balanceEnabled: boolean;
+      }>(`/channels/${id}/balance`)
+      .then((r) => r.data),
+
+  refreshBalance: (id: number) =>
+    api
+      .post<{ balance: number; currency: string; fetchedAt: string }>(
+        `/channels/${id}/balance/refresh`,
+      )
+      .then((r) => r.data),
+
+  getBalanceSnapshots: (id: number, limit?: number) =>
+    api
+      .get<BalanceSnapshot[]>(`/channels/${id}/balance/snapshots`, {
+        params: { limit },
+      })
+      .then((r) => r.data),
 };
+

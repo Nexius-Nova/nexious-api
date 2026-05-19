@@ -55,6 +55,15 @@
           <span class="weight-value">{{ row.weight }}</span>
         </div>
       </template>
+      <template #cell-balance="{ row }">
+        <div class="balance-cell">
+          <template v-if="(row as any).balanceEnabled">
+            <span class="balance-value">{{ formatBalance((row as any).lastBalance) }}</span>
+            <span class="balance-currency">{{ (row as any).currency || 'USD' }}</span>
+          </template>
+          <span v-else class="balance-disabled">未启用</span>
+        </div>
+      </template>
       <template #cell-actions="{ row }">
         <div class="actions">
           <button
@@ -112,6 +121,30 @@
         <label class="form-label">可见性</label>
         <SelectField v-model="formVisibility" :options="visibilityOptions" placeholder="请选择" />
       </div>
+
+      <!-- Billing Config Section -->
+      <div class="billing-section">
+        <h4 class="section-title">余额设置</h4>
+        <div class="form-group">
+          <SwitchToggle v-model="form.balanceEnabled" :label="form.balanceEnabled ? '已启用余额查询' : '禁用余额查询'" />
+        </div>
+        <div v-if="form.balanceEnabled" class="form-row">
+          <div class="form-group">
+            <label class="form-label">余额接口类型</label>
+            <SelectField v-model="balanceApiTypeModel" :options="balanceApiOptions" placeholder="openai" />
+          </div>
+          <FormInput v-model="form.currency" label="币种" placeholder="USD" />
+        </div>
+        <div v-if="form.balanceEnabled" class="form-group">
+          <label class="form-label">余额接口配置 (JSON)</label>
+          <textarea
+            v-model="balanceApiConfigModel"
+            class="form-textarea"
+            rows="2"
+            placeholder='{"balanceUrl":"https://custom/api/balance"}'
+          ></textarea>
+        </div>
+      </div>
       <template #footer>
         <button class="btn-ghost" @click="dialogVisible = false">取消</button>
         <button class="btn-primary" @click="saveChannel">保存渠道</button>
@@ -167,6 +200,11 @@ const visibilityOptions = [
   { value: 'public', label: '公开 — 所有用户可见' },
 ];
 
+const balanceApiOptions = [
+  { value: 'openai', label: 'OpenAI 兼容' },
+  { value: 'openai-compatible', label: 'OpenAI 兼容 (通用)' },
+];
+
 const channels = ref<Channel[]>([]);
 const dialogVisible = ref(false);
 const confirmVisible = ref(false);
@@ -184,6 +222,10 @@ const form = ref<Channel>({
   status: true,
   weight: 1,
   visibility: 'private',
+  currency: 'USD',
+  balanceEnabled: false,
+  balanceApiType: 'openai-compatible',
+  balanceApiConfig: '',
 });
 const toast = useToast();
 const authStore = useAuthStore();
@@ -195,6 +237,7 @@ const columns: ColumnDef[] = [
   { key: 'baseUrl', label: '基础 URL' },
   { key: 'models', label: '模型' },
   { key: 'weight', label: '权重' },
+  { key: 'balance', label: '余额' },
   { key: 'actions', label: '操作', align: 'right' },
 ];
 
@@ -209,6 +252,20 @@ const formVisibility = computed({
   get: () => form.value.visibility ?? 'private',
   set: (value: string) => {
     form.value.visibility = value;
+  },
+});
+
+const balanceApiTypeModel = computed({
+  get: () => form.value.balanceApiType ?? 'openai-compatible',
+  set: (value: string) => {
+    form.value.balanceApiType = value;
+  },
+});
+
+const balanceApiConfigModel = computed({
+  get: () => form.value.balanceApiConfig ?? '',
+  set: (value: string) => {
+    form.value.balanceApiConfig = value;
   },
 });
 
@@ -238,6 +295,10 @@ const openDialog = (row: Channel | null = null) => {
       status: true,
       weight: 1,
       visibility: 'private',
+      currency: 'USD',
+      balanceEnabled: false,
+      balanceApiType: 'openai-compatible',
+      balanceApiConfig: '',
     };
   }
   dialogVisible.value = true;
@@ -247,6 +308,7 @@ const openDialog = (row: Channel | null = null) => {
 const CHANNEL_WHITELIST = [
   'name', 'type', 'baseUrl', 'apiKey', 'models',
   'modelTypes', 'status', 'weight', 'visibility',
+  'currency', 'balanceEnabled', 'balanceApiType', 'balanceApiConfig',
 ] as const;
 
 const cleanPayload = (raw: Record<string, any>, isUpdate: boolean) => {
@@ -321,6 +383,14 @@ const testChannel = async (id: number) => {
     testingSet.value = next;
   }
 };
+
+function formatBalance(value: number | string | null | undefined) {
+  const n = Number(value);
+  if (!value || isNaN(n) || n === 0) return '$0.00';
+  if (n < 0.01) return `$${n.toFixed(6)}`;
+  if (n < 1) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(2)}`;
+}
 
 onMounted(fetchChannels);
 </script>
@@ -565,5 +635,58 @@ onMounted(fetchChannels);
   background: var(--bg-input);
   border-radius: 4px;
   white-space: nowrap;
+}
+
+/* Balance cell */
+.balance-cell {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.balance-value {
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+.balance-currency {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: 3px;
+}
+
+.balance-disabled {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* Billing section */
+.billing-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.section-title {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.form-textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  resize: vertical;
+  outline: none;
+}
+
+.form-textarea:focus {
+  border-color: var(--accent-blue);
 }
 </style>

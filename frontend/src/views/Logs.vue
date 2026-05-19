@@ -124,8 +124,14 @@
       </template>
       <template #cell-totalTokens="{ row }">
         <div class="usage-stack">
-          <div class="usage-total">{{ row.totalTokens }} <span class="unit">总计</span></div>
+          <div class="usage-total">{{ row.totalTokens }} <span class="unit">总计</span><span v-if="row.isEstimated" class="est-badge" title="上游未返回 usage，此值为估算">估算</span></div>
           <div class="usage-split">{{ row.promptTokens }} 提示 / {{ row.completionTokens }} 补全</div>
+        </div>
+      </template>
+      <template #cell-totalCost="{ row }">
+        <div class="cost-cell">
+          <span v-if="Number(row.totalCost || 0) > 0" class="cost-value">{{ formatCost(row.totalCost) }}</span>
+          <span v-else class="cost-na">-</span>
         </div>
       </template>
       <template #cell-ip="{ row }">
@@ -181,6 +187,7 @@ const columns: ColumnDef[] = [
   { key: 'channel', label: '渠道' },
   { key: 'model', label: '模型' },
   { key: 'totalTokens', label: '消耗' },
+  { key: 'totalCost', label: '金额', align: 'right' },
   { key: 'ip', label: 'IP 地址' },
 ];
 
@@ -333,6 +340,14 @@ const formatTime = (dateStr: string) => {
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString();
 };
+
+function formatCost(value: number | string | undefined | null) {
+  const n = Number(value) || 0;
+  if (n === 0) return '$0.00';
+  if (n < 0.01) return `$${n.toFixed(6)}`;
+  if (n < 1) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(2)}`;
+}
 
 const visiblePages = computed(() => {
   const totalPages = Math.ceil(total.value / limit.value);
@@ -680,5 +695,36 @@ onUnmounted(() => {
 .drop-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+/* Estimate badge */
+.est-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--accent-orange);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Cost cell */
+.cost-cell {
+  text-align: right;
+}
+
+.cost-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent-green);
+  font-size: 0.82rem;
+}
+
+.cost-na {
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 </style>

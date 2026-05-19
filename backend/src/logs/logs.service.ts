@@ -62,7 +62,6 @@ export class LogsService {
 
     return { items, total, page, limit };
   }
-
   async create(data: any) {
     return this.prisma.log.create({ data });
   }
@@ -192,6 +191,134 @@ export class LogsService {
       promptTokens: m._sum.promptTokens || 0,
       completionTokens: m._sum.completionTokens || 0,
       requestCount: m._count.model,
+    }));
+  }
+
+  // ─── Cost aggregation endpoints ───────────────────────────────────────
+
+  async getCostStats(userId?: number) {
+    const userWhere: any = userId ? { userId } : {};
+    const beijingOffset = 8 * 60 * 60 * 1000;
+    const now = new Date();
+    const beijingNow = new Date(now.getTime() + beijingOffset);
+    const todayStart = new Date(
+      beijingNow.getFullYear(),
+      beijingNow.getMonth(),
+      beijingNow.getDate(),
+      0, 0, 0, 0,
+    );
+    const todayStartUtc = new Date(todayStart.getTime() - beijingOffset);
+
+    const [totalCostAgg, todayCostAgg] = await Promise.all([
+      this.prisma.log.aggregate({
+        where: userWhere,
+        _sum: { totalCost: true },
+      }),
+      this.prisma.log.aggregate({
+        where: { ...userWhere, createdAt: { gte: todayStartUtc } },
+        _sum: { totalCost: true },
+      }),
+    ]);
+
+    return {
+      totalCost: totalCostAgg._sum.totalCost || 0,
+      todayCost: todayCostAgg._sum.totalCost || 0,
+    };
+  }
+
+  async getDailyCost(days: number, userId?: number) {
+    const beijingOffset = 8 * 60 * 60 * 1000;
+    const now = new Date();
+    const beijingNow = new Date(now.getTime() + beijingOffset);
+
+    const since = new Date(beijingNow);
+    since.setDate(since.getDate() - days);
+    const sinceUtc = new Date(since.getTime() - beijingOffset);
+
+    const rows = await this.prisma.$queryRawUnsafe<
+      { date: string; totalCost: number; requestCount: number }[]
+    >(
+      `SELECT
+        DATE(DATE_ADD(createdAt, INTERVAL 8 HOUR)) AS \`date\`,
+        SUM(totalCost) AS totalCost,
+        COUNT(*) AS requestCount
+      FROM \`Log\`
+      WHERE createdAt >= ?
+        ${userId ? 'AND userId = ?' : ''}
+      GROUP BY DATE(DATE_ADD(createdAt, INTERVAL 8 HOUR))
+      ORDER BY \`date\` ASC`,
+      sinceUtc,
+      ...(userId ? [userId] : []),
+    );
+
+    const aggMap = new Map<string, { totalCost: number; requestCount: number }>();
+    for (const row of rows) {
+      aggMap.set(row.date, {
+        totalCost: Number(row.totalCost),
+        requestCount: Number(row.requestCount),
+      });
+    }
+
+    const result: { date: string; totalCost: number; requestCount: number }[] = [];
+    for (let i = days; i >= 0; i--) {
+      const d = new Date(beijingNow);
+      d.setDate(d.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const entry = aggMap.get(key);
+      result.push({
+        date: key,
+        totalCost: entry?.totalCost ?? 0,
+        requestCount: entry?.requestCount ?? 0,
+      });
+    }
+
+    return result;
+  }
+
+  async getModelCosts(userId?: number) {
+    const userWhere: any = userId ? { userId } : {};
+    const models = await this.prisma.log.groupBy({
+      by: ['model'],
+      where: userWhere,
+      _sum: { totalCost: true, inputCost: true, outputCost: true },
+      _count: { model: true },
+      orderBy: { _sum: { totalCost: 'desc' } },
+    });
+
+    return models.map((m) => ({
+      model: m.model,
+      totalCost: m._sum.totalCost || 0,
+      inputCost: m._sum.inputCost || 0,
+      outputCost: m._sum.outputCost || 0,
+      requestCount: m._count.model,
+    }));
+  }
+
+  async getChannelCosts(userId?: number) {
+    const userWhere: any = userId ? { userId } : {};
+    const channels = await this.prisma.log.groupBy({
+      by: ['channelId'],
+      where: userWhere,
+      _sum: { totalCost: true },
+      _count: { channelId: true },
+      orderBy: { _sum: { totalCost: 'desc' } },
+    });
+
+    // Enrich with channel names
+    const channelIds = channels
+      .map((c) => c.channelId)
+      .filter((id): id is number => id !== null);
+    const channelNames = await this.prisma.channel.findMany({
+      where: { id: { in: channelIds } },
+      select: { id: true, name: true },
+    });
+    const nameMap = new Map(channelNames.map((c) => [c.id, c.name]));
+
+    return channels.map((c) => ({
+      channelId: c.channelId,
+      channelName: nameMap.get(c.channelId!) || 'Unknown',
+      totalCost: c._sum.totalCost || 0,
+      requestCount: c._count.channelId,
     }));
   }
 }

@@ -46,4 +46,24 @@ export class LogsController {
   getModelDistribution(@Req() req: any) {
     return this.logsService.getModelDistribution(req.user?.userId);
   }
+
+  @Get('stats/cost')
+  getCostStats(@Req() req: any) {
+    return this.logsService.getCostStats(req.user?.userId);
+  }
+
+  @Get('stats/daily-cost')
+  getDailyCost(@Query('days') days: string, @Req() req: any) {
+    return this.logsService.getDailyCost(+days || 7, req.user?.userId);
+  }
+
+  @Get('stats/model-costs')
+  getModelCosts(@Req() req: any) {
+    return this.logsService.getModelCosts(req.user?.userId);
+  }
+
+  @Get('stats/channel-costs')
+  getChannelCosts(@Req() req: any) {
+    return this.logsService.getChannelCosts(req.user?.userId);
+  }
 }

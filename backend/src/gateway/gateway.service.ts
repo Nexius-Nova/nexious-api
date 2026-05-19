@@ -6,17 +6,44 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PricingService } from '../pricing/pricing.service';
 import axios from 'axios';
 import { Response } from 'express';
 
 @Injectable()
 export class GatewayService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pricingService: PricingService,
+  ) {}
 
   private channelWhere(userId?: number) {
     return {
       status: true,
       OR: [{ userId: userId || -1 }, { visibility: 'public' }],
+    };
+  }
+
+  private estimateTokensFromText(value: unknown): number {
+    if (!value) return 0;
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    return Math.max(1, Math.ceil(text.length / 4));
+  }
+
+  private estimateChatUsage(
+    messages: { role: string; content: unknown }[],
+    completion: string,
+  ) {
+    const promptTokens = messages.reduce(
+      (sum, message) => sum + this.estimateTokensFromText(message.content),
+      0,
+    );
+    const completionTokens = this.estimateTokensFromText(completion);
+
+    return {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: promptTokens + completionTokens,
     };
   }
 
@@ -91,6 +118,16 @@ export class GatewayService {
           ip,
           token.userId ?? undefined,
         );
+      } else {
+        this.trackStreamUsage(
+          response.data,
+          body.messages || [],
+          token.id,
+          channel.id,
+          body.model,
+          ip,
+          token.userId ?? undefined,
+        );
       }
 
       return response.data;
@@ -133,33 +170,126 @@ export class GatewayService {
     usage: any,
     ip: string,
     userId?: number,
+    isEstimated: boolean = false,
   ) {
+    const promptTokens = Number(usage.prompt_tokens) || 0;
+    const completionTokens = Number(usage.completion_tokens) || 0;
     const total =
-      usage.total_tokens || usage.prompt_tokens + usage.completion_tokens;
-    await this.prisma.$transaction([
+      Number(usage.total_tokens) || promptTokens + completionTokens;
+
+    // Calculate cost if pricing is configured
+    let costData: any = {
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      currency: 'USD',
+      pricingSnapshot: null,
+    };
+
+    try {
+      const calc = await this.pricingService.calculateCost(
+        channelId,
+        model,
+        promptTokens,
+        completionTokens,
+      );
+      if (calc) {
+        costData = {
+          inputCost: calc.inputCost,
+          outputCost: calc.outputCost,
+          totalCost: calc.totalCost,
+          currency: calc.currency,
+          pricingSnapshot: JSON.stringify(calc.pricingSnapshot),
+        };
+      }
+    } catch {
+      // Cost calculation is non-critical; continue without it
+    }
+
+    const ops: any[] = [
       this.prisma.log.create({
         data: {
-          tokenId,
+          tokenId: tokenId || null,
           channelId,
           model,
-          promptTokens: usage.prompt_tokens,
-          completionTokens: usage.completion_tokens,
+          promptTokens,
+          completionTokens,
           totalTokens: total,
           ip,
           userId,
+          inputCost: costData.inputCost,
+          outputCost: costData.outputCost,
+          totalCost: costData.totalCost,
+          currency: costData.currency,
+          pricingSnapshot: costData.pricingSnapshot,
+          isEstimated,
         },
       }),
-      this.prisma.token.update({
-        where: { id: tokenId },
-        data: { used: { increment: total } },
-      }),
-    ]);
+    ];
+    // Only update token usage when a real token is involved
+    if (tokenId) {
+      ops.push(
+        this.prisma.token.update({
+          where: { id: tokenId },
+          data: { used: { increment: total } },
+        }),
+      );
+    }
+    await this.prisma.$transaction(ops);
+  }
+
+  private trackStreamUsage(
+    stream: NodeJS.ReadableStream,
+    messages: { role: string; content: unknown }[],
+    tokenId: number,
+    channelId: number,
+    model: string,
+    ip: string,
+    userId?: number,
+  ) {
+    let usage: any = null;
+    let completion = '';
+    let buffer = '';
+    let streamDone = false;
+
+    stream.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:') || trimmed.includes('[DONE]')) {
+          continue;
+        }
+        try {
+          const json = JSON.parse(trimmed.slice(5).trim());
+          const delta = json.choices?.[0]?.delta?.content;
+          if (typeof delta === 'string') {
+            completion += delta;
+          }
+          if (json.usage) {
+            usage = json.usage;
+          }
+        } catch {}
+      }
+    });
+
+    stream.on('end', async () => {
+      const isEstimated = !usage;
+      const finalUsage = usage || this.estimateChatUsage(messages, completion);
+      try {
+        await this.recordLog(
+          tokenId, channelId, model, finalUsage, ip, userId, isEstimated,
+        );
+      } catch {}
+    });
   }
 
   async playgroundChat(
     body: {
       model: string;
-      messages: { role: string; content: string }[];
+      messages: { role: string; content: unknown }[];
       temperature?: number;
       maxTokens?: number;
       topP?: number;
@@ -207,6 +337,16 @@ export class GatewayService {
         total_tokens: 0,
       };
 
+      // Record log for playground chat calls
+      await this.recordLog(
+        0, // playground calls don't require a token
+        channel.id,
+        body.model,
+        usage,
+        '', // no client IP in playground context
+        ctx?.userId,
+      );
+
       return {
         message: response.data.choices?.[0]?.message || {
           role: 'assistant',
@@ -253,7 +393,7 @@ export class GatewayService {
   async playgroundChatStream(
     body: {
       model: string;
-      messages: { role: string; content: string }[];
+      messages: { role: string; content: unknown }[];
       temperature?: number;
       maxTokens?: number;
       topP?: number;
@@ -288,6 +428,11 @@ export class GatewayService {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
+    let usage: any = null;
+    let completion = '';
+    let buffer = '';
+    let streamDone = false;
+
     try {
       const response = await axios.post(
         `${channel.baseUrl}/v1/chat/completions`,
@@ -303,20 +448,48 @@ export class GatewayService {
       );
 
       response.data.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
-        const lines = text
-          .split('\n')
-          .filter((l: string) => l.startsWith('data:'));
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
         for (const line of lines) {
-          if (line.includes('[DONE]')) {
-            res.write('data: [DONE]\n\n');
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) {
+            continue;
+          }
+          if (trimmed.includes('[DONE]')) {
+            streamDone = true;
             return;
           }
-          res.write(`${line}\n\n`);
+          try {
+            const json = JSON.parse(trimmed.slice(5).trim());
+            const delta = json.choices?.[0]?.delta?.content;
+            if (typeof delta === 'string') {
+              completion += delta;
+            }
+            if (json.usage) {
+              usage = json.usage;
+            }
+          } catch {}
+          res.write(`${trimmed}\n\n`);
         }
       });
 
-      response.data.on('end', () => {
+      response.data.on('end', async () => {
+        const isEstimated = !usage;
+        const finalUsage =
+          usage || this.estimateChatUsage(body.messages, completion);
+        res.write(
+          `data: ${JSON.stringify({ usage: finalUsage })}\n\n`,
+        );
+        if (streamDone) {
+          res.write('data: [DONE]\n\n');
+        }
+        try {
+          await this.recordLog(
+            0, channel.id, body.model, finalUsage, '', ctx?.userId, isEstimated,
+          );
+        } catch {}
         res.end();
       });
 

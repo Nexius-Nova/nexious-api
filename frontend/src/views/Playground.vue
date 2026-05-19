@@ -370,7 +370,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { StyleValue } from 'vue';
-import api from '../api';
+import api, { apiBaseURL } from '../api';
 import type { Channel } from '../types';
 import ModelIcon from '../components/ModelIcon.vue';
 import SwitchToggle from '../components/SwitchToggle.vue';
@@ -472,7 +472,6 @@ const isGenerating = ref(false);
 const isTyping = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
 const chatInputEl = ref<HTMLTextAreaElement | null>(null);
-let typewriterTimer: ReturnType<typeof setInterval> | null = null;
 let abortGenerating = false;
 
 // ── Conversation State ──
@@ -538,7 +537,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleClickOutside);
-  stopTypewriter();
 });
 
 const handleClickOutside = (e: MouseEvent) => {
@@ -629,9 +627,13 @@ const doStreamSend = async (payload: any) => {
   const startTime = Date.now();
 
   try {
-    const response = await fetch('/api/playground/chat/stream', {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${apiBaseURL}/playground/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
@@ -744,7 +746,7 @@ const doRegularSend = async (payload: any) => {
     const aiMsg: ChatMessage = {
       role: 'assistant',
       content: aiContent,
-      displayContent: '',
+      displayContent: aiContent,
       timestamp: Date.now(),
       usage,
     };
@@ -759,8 +761,8 @@ const doRegularSend = async (payload: any) => {
       usage,
     };
 
-    // Typewriter effect
-    startTypewriter(messages.value.length - 1, aiContent);
+    isGenerating.value = false;
+    isTyping.value = false;
 
   } catch (err: any) {
     const errorContent = err.response?.data?.error?.message || err.message || '请求失败';
@@ -790,42 +792,12 @@ const doRegularSend = async (payload: any) => {
 
 const stopGeneration = () => {
   abortGenerating = true;
-  stopTypewriter();
   if (streamAbortController) {
     streamAbortController.abort();
     streamAbortController = null;
   }
   isGenerating.value = false;
   isTyping.value = false;
-};
-
-// ── Typewriter Effect ──
-const startTypewriter = (msgIdx: number, fullText: string) => {
-  isTyping.value = true;
-  let i = 0;
-  const speed = 15; // ms per character
-  typewriterTimer = setInterval(() => {
-    if (abortGenerating) {
-      stopTypewriter();
-      isGenerating.value = false;
-      return;
-    }
-    i++;
-    messages.value[msgIdx].displayContent = fullText.slice(0, i);
-    scrollToBottom();
-    if (i >= fullText.length) {
-      stopTypewriter();
-      isGenerating.value = false;
-      isTyping.value = false;
-    }
-  }, speed);
-};
-
-const stopTypewriter = () => {
-  if (typewriterTimer) {
-    clearInterval(typewriterTimer);
-    typewriterTimer = null;
-  }
 };
 
 // ── Message Actions ──

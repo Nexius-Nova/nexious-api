@@ -277,7 +277,7 @@
 
         <div class="tip-box">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-          <span>流式响应目前不记录使用日志和 Token 用量。如需追踪用量，请使用非流式请求。</span>
+          <span>流式响应会记录使用日志；若上游未返回 Token 用量，网关会根据输入与输出文本估算用量。</span>
         </div>
       </section>
 
@@ -923,7 +923,7 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)`;
 
 const nodeSdkExample = `// Node.js — 使用 OpenAI SDK 接入 Nexious
-import OpenAI from 'openai';
+${'import'} OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: 'sk-your-token-here',

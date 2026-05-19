@@ -10,6 +10,9 @@ import { ConversationsModule } from './conversations/conversations.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { EmailModule } from './email/email.module';
+import { PricingModule } from './pricing/pricing.module';
+import { BillingModule } from './billing/billing.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { EmailModule } from './email/email.module';
     AuthModule,
     UsersModule,
     EmailModule,
+    PricingModule,
+    BillingModule,
+    SchedulerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

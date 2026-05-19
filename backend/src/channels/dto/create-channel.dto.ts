@@ -42,6 +42,23 @@ export class CreateChannelDto {
   @IsOptional()
   @IsIn(['public', 'private'])
   visibility?: string;
+
+  // Billing fields
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  balanceEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  balanceApiType?: string;
+
+  @IsOptional()
+  @IsString()
+  balanceApiConfig?: string;
 }
 
 export class UpdateChannelDto {
@@ -82,4 +99,21 @@ export class UpdateChannelDto {
   @IsOptional()
   @IsIn(['public', 'private'])
   visibility?: string;
+
+  // Billing fields
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  balanceEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  balanceApiType?: string;
+
+  @IsOptional()
+  @IsString()
+  balanceApiConfig?: string;
 }

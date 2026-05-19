@@ -67,6 +67,11 @@ const router = createRouter({
               name: 'Playground',
               component: () => import('../views/Playground.vue'),
             },
+            {
+              path: 'pricing',
+              name: 'Pricing',
+              component: () => import('../views/Pricing.vue'),
+            },
           ],
         },
         {

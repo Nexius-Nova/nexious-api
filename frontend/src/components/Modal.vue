@@ -52,7 +52,6 @@ defineEmits<{
   width: 100%;
   background: var(--bg-card);
   padding: 0;
-  overflow: hidden;
 }
 
 .modal-header {

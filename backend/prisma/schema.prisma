@@ -7,21 +7,30 @@ datasource db {
 }
 
 model Channel {
-  id         Int      @id @default(autoincrement())
-  name       String
-  type       String   // openai, anthropic, custom, etc.
-  baseUrl    String
-  apiKey     String
-  models     String   // Comma separated list of supported models
-  modelTypes String?  @map("model_types") // JSON: {"gpt-4":"text","dall-e-3":"image"}
-  status     Boolean  @default(true)
-  weight     Int      @default(1)
-  visibility String?  @default("private") // "public" | "private"
-  userId     Int?
-  user       User?    @relation(fields: [userId], references: [id])
-  logs       Log[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  name            String
+  type            String   // openai, anthropic, custom, etc.
+  baseUrl         String
+  apiKey          String
+  models          String   // Comma separated list of supported models
+  modelTypes      String?  @map("model_types") // JSON: {"gpt-4":"text","dall-e-3":"image"}
+  status          Boolean  @default(true)
+  weight          Int      @default(1)
+  visibility      String?  @default("private") // "public" | "private"
+  userId          Int?
+  user            User?    @relation(fields: [userId], references: [id])
+  logs            Log[]
+  modelPricings   ModelPricing[]          @relation("ChannelPricing")
+  balanceSnapshots ChannelBalanceSnapshot[] @relation("ChannelBalance")
+  // Billing / balance fields
+  currency        String?   @default("USD")
+  balanceEnabled  Boolean   @default(false) @map("balance_enabled")
+  balanceApiType  String?   @map("balance_api_type") // e.g. "openai", "openai-compatible"
+  balanceApiConfig String?  @db.LongText @map("balance_api_config") // JSON config for balance API
+  lastBalance     Decimal?  @db.Decimal(18, 8) @map("last_balance")
+  lastBalanceAt   DateTime? @map("last_balance_at")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model User {
@@ -70,7 +79,14 @@ model Log {
   ip               String?
   userId           Int?
   user             User?    @relation(fields: [userId], references: [id])
-  createdAt        DateTime @default(now())
+  // Cost / billing fields
+  inputCost        Decimal   @default(0) @db.Decimal(18, 8) @map("input_cost")
+  outputCost       Decimal   @default(0) @db.Decimal(18, 8) @map("output_cost")
+  totalCost        Decimal   @default(0) @db.Decimal(18, 8) @map("total_cost")
+  currency         String?   @default("USD")
+  pricingSnapshot  String?   @db.LongText @map("pricing_snapshot") // JSON snapshot of pricing used
+  isEstimated      Boolean   @default(false) @map("is_estimated")
+  createdAt        DateTime  @default(now())
 }
 
 model Conversation {
@@ -91,4 +107,31 @@ model Conversation {
   updatedAt      DateTime @updatedAt
 
   @@map("conversation")
+}
+
+model ModelPricing {
+  id               Int      @id @default(autoincrement())
+  channelId        Int      @map("channel_id")
+  channel          Channel? @relation("ChannelPricing", fields: [channelId], references: [id])
+  model            String
+  inputPricePer1K  Decimal  @db.Decimal(18, 8) @map("input_price_per_1k")
+  outputPricePer1K Decimal  @db.Decimal(18, 8) @map("output_price_per_1k")
+  currency         String   @default("USD")
+  effectiveAt      DateTime @default(now()) @map("effective_at")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("model_pricing")
+}
+
+model ChannelBalanceSnapshot {
+  id        Int      @id @default(autoincrement())
+  channelId Int      @map("channel_id")
+  channel   Channel? @relation("ChannelBalance", fields: [channelId], references: [id])
+  balance   Decimal  @db.Decimal(18, 8)
+  currency  String
+  rawData   String?  @db.LongText @map("raw_data") // JSON raw response
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  @@map("channel_balance_snapshot")
 }

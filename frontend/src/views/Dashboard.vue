@@ -5,6 +5,14 @@
         <h2>数据看板</h2>
       </div>
       <div class="header-meta">
+        <div class="mode-switch" role="group" aria-label="数据模式">
+          <button :class="['mode-btn', { active: dataMode === 'tokens' }]" @click="dataMode = 'tokens'">
+            Token
+          </button>
+          <button :class="['mode-btn', { active: dataMode === 'cost' }]" @click="dataMode = 'cost'">
+            金额
+          </button>
+        </div>
         <span>统计周期</span>
         <div class="range-switch" role="group" aria-label="选择统计周期">
           <button
@@ -22,7 +30,7 @@
 
     <div class="metric-grid">
       <article
-        v-for="metric in metrics"
+        v-for="metric in dataMode === 'tokens' ? metrics : costMetrics"
         :key="metric.label"
         class="metric-card glass-panel"
         :style="{ '--metric-color': metric.color }"
@@ -43,12 +51,12 @@
         <div class="panel-header">
           <div>
             <h3>每日消耗趋势</h3>
-            <p>按自然日统计 Token 消耗与请求热度</p>
+            <p>{{ dataMode === 'tokens' ? '按自然日统计 Token 消耗与请求热度' : '按自然日统计金额消耗' }}</p>
           </div>
-          <span class="panel-kpi">{{ formatNumber(stats.todayTokens) }} tokens 今日</span>
+          <span class="panel-kpi">{{ dataMode === 'tokens' ? formatNumber(stats.todayTokens) + ' tokens 今日' : formatCost(costStats.todayCost) + ' 今日' }}</span>
         </div>
         <div class="chart-slot trend-chart">
-          <BarChart :data="dailyData" :height="260" bar-color="var(--accent-blue)" />
+          <BarChart :data="dataMode === 'tokens' ? dailyData : dailyCostData" :height="260" bar-color="var(--accent-blue)" />
         </div>
       </article>
 
@@ -56,11 +64,11 @@
         <div class="panel-header compact">
           <div>
             <h3>模型占比</h3>
-            <p>按 Token 消耗拆分</p>
+            <p>{{ dataMode === 'tokens' ? '按 Token 消耗拆分' : '按金额消耗拆分' }}</p>
           </div>
         </div>
         <div class="donut-layout">
-          <DonutChart :data="topModelData" :size="168" :thickness="22" />
+          <DonutChart :data="dataMode === 'tokens' ? topModelData : topModelCostData" :size="168" :thickness="22" />
         </div>
       </article>
 
@@ -68,11 +76,11 @@
         <div class="panel-header compact">
           <div>
             <h3>模型排行</h3>
-            <p>消耗最高的模型</p>
+            <p>{{ dataMode === 'tokens' ? '消耗最高的模型' : '金额最高的模型' }}</p>
           </div>
         </div>
-        <div class="ranking-list" v-if="modelRanking.length">
-          <div v-for="item in modelRanking" :key="item.model" class="ranking-row">
+        <div class="ranking-list" v-if="(dataMode === 'tokens' ? modelRanking : modelCostRanking).length">
+          <div v-for="item in (dataMode === 'tokens' ? modelRanking : modelCostRanking)" :key="item.model" class="ranking-row">
             <div class="ranking-main">
               <span class="rank-dot" :style="{ background: item.color }"></span>
               <span class="rank-name">{{ item.model }}</span>
@@ -80,7 +88,7 @@
             <div class="rank-meter">
               <span :style="{ width: item.percent + '%', background: item.color }"></span>
             </div>
-            <span class="rank-value">{{ formatNumber(item.totalTokens) }}</span>
+            <span class="rank-value">{{ dataMode === 'tokens' ? formatNumber(item.totalTokens) : formatCost(item.totalCost) }}</span>
           </div>
         </div>
         <div v-else class="empty-state">暂无模型数据</div>
@@ -90,11 +98,11 @@
         <div class="panel-header">
           <div>
             <h3>模型消耗分布</h3>
-            <p>用于快速对比不同模型的消耗量级</p>
+            <p>{{ dataMode === 'tokens' ? '用于快速对比不同模型的消耗量级' : '用于快速对比不同模型的金额量级' }}</p>
           </div>
         </div>
         <div class="chart-slot model-chart">
-          <BarChart :data="modelBarData" :height="230" bar-color="var(--accent-green)" />
+          <BarChart :data="dataMode === 'tokens' ? modelBarData : modelCostBarData" :height="230" bar-color="var(--accent-green)" />
         </div>
       </article>
 
@@ -118,7 +126,8 @@
                 <th>时间</th>
                 <th>模型</th>
                 <th>令牌</th>
-                <th class="align-right">消耗</th>
+                <th class="align-right">Token</th>
+                <th class="align-right">金额</th>
               </tr>
             </thead>
             <tbody>
@@ -129,6 +138,10 @@
                 </td>
                 <td class="muted-cell">{{ log.token?.name || '-' }}</td>
                 <td class="align-right strong-cell">{{ formatNumber(log.totalTokens) }}</td>
+                <td class="align-right strong-cell">
+                  <span v-if="Number(log.totalCost) > 0">{{ formatCost(log.totalCost) }}</span>
+                  <span v-else class="muted-cell">-</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -165,10 +178,14 @@ const stats = ref({
   todayRequests: 0,
   avgTokensPerRequest: 0,
 });
+const costStats = ref({ totalCost: 0, todayCost: 0 });
+const dataMode = ref<'tokens' | 'cost'>('tokens');
 const dailyDays = ref(7);
 const dayOptions = [7, 30];
 const dailyUsage = ref<DailyUsage[]>([]);
+const dailyCostUsage = ref<DailyUsage[]>([]);
 const modelDist = ref<ModelUsage[]>([]);
+const modelCostDist = ref<ModelUsage[]>([]);
 const recentLogs = ref<Log[]>([]);
 
 const palette = [
@@ -241,6 +258,72 @@ const metrics = computed(() => [
   },
 ]);
 
+const costMetrics = computed(() => [
+  {
+    label: '累计金额',
+    value: formatCost(costStats.value.totalCost),
+    note: '全部请求总金额',
+    color: 'var(--accent-blue)',
+    icon: cubeIcon,
+  },
+  {
+    label: '今日请求',
+    value: formatNumber(stats.value.todayRequests),
+    note: `${formatNumber(stats.value.todayTokens)} tokens 今日`,
+    color: 'var(--accent-orange)',
+    icon: pulseIcon,
+  },
+  {
+    label: '今日金额',
+    value: formatCost(costStats.value.todayCost),
+    note: '今日累计金额消耗',
+    color: 'var(--accent-green)',
+    icon: listIcon,
+  },
+  {
+    label: '平均长度',
+    value: `${formatNumber(stats.value.avgTokensPerRequest)}`,
+    note: 'tokens / request',
+    color: 'var(--accent-red)',
+    icon: gaugeIcon,
+  },
+]);
+
+// Cost chart data
+const dailyCostData = computed(() =>
+  dailyCostUsage.value.map((item: any) => ({
+    label: item.date.slice(5),
+    value: Number(item.totalCost) || 0,
+  })),
+);
+
+const modelCostBarData = computed(() =>
+  modelCostDist.value.map((item: any) => ({
+    label: item.model,
+    value: Number(item.totalCost) || 0,
+  })),
+);
+
+const topModelCostData = computed(() =>
+  modelCostDist.value.slice(0, 6).map((item: any) => ({
+    label: item.model,
+    value: Number(item.totalCost) || 0,
+  })),
+);
+
+const modelCostRanking = computed(() => {
+  const items = modelCostDist.value.map((item: any) => ({
+    ...item,
+    totalCost: Number(item.totalCost) || 0,
+  }));
+  const max = Math.max(...items.map((item) => item.totalCost), 1);
+  return items.slice(0, 6).map((item, index) => ({
+    ...item,
+    color: palette[index % palette.length],
+    percent: Math.max(4, Math.round((item.totalCost / max) * 100)),
+  }));
+});
+
 const fetchStats = async () => {
   const res = await api.get('/logs/stats');
   stats.value = res.data;
@@ -261,10 +344,31 @@ const fetchRecentLogs = async () => {
   recentLogs.value = res.data.items || [];
 };
 
+const fetchCostStats = async () => {
+  try {
+    const res = await api.get('/logs/stats/cost');
+    costStats.value = res.data;
+  } catch {}
+};
+
+const fetchDailyCost = async () => {
+  try {
+    const res = await api.get('/logs/stats/daily-cost', { params: { days: dailyDays.value } });
+    dailyCostUsage.value = res.data;
+  } catch {}
+};
+
+const fetchModelCosts = async () => {
+  try {
+    const res = await api.get('/logs/stats/model-costs');
+    modelCostDist.value = res.data;
+  } catch {}
+};
+
 const changeDailyRange = async (days: number) => {
   if (dailyDays.value === days) return;
   dailyDays.value = days;
-  await fetchDailyUsage();
+  await Promise.all([fetchDailyUsage(), fetchDailyCost()]);
 };
 
 const fmtTime = (dateStr: string) => {
@@ -280,6 +384,14 @@ function formatNumber(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 10_000) return `${(value / 1_000).toFixed(1)}K`;
   return value.toLocaleString();
+}
+
+function formatCost(value: number | string | undefined | null) {
+  const n = Number(value) || 0;
+  if (n === 0) return '$0.00';
+  if (n < 0.01) return `$${n.toFixed(6)}`;
+  if (n < 1) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(2)}`;
 }
 
 function cubeIcon() {
@@ -328,7 +440,7 @@ function iconAttrs() {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchStats(), fetchDailyUsage(), fetchModelDistribution(), fetchRecentLogs()]);
+  await Promise.all([fetchStats(), fetchDailyUsage(), fetchModelDistribution(), fetchRecentLogs(), fetchCostStats(), fetchDailyCost(), fetchModelCosts()]);
 });
 </script>
 
@@ -368,6 +480,30 @@ onMounted(async () => {
   gap: 10px;
   color: var(--text-muted);
   font-size: 0.76rem;
+}
+
+.mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--accent-blue);
+  border-radius: 8px;
+  background: var(--bg-sidebar);
+}
+
+.mode-btn {
+  min-width: 52px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.mode-btn.active {
+  background: var(--accent-blue);
+  color: white;
 }
 
 .range-switch {
