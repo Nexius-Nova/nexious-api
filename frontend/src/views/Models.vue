@@ -308,7 +308,7 @@ const fetchPricing = async () => {
   } catch {}
 };
 
-const getPricing = (channelId: number | undefined, model: string): ModelPricing | null => {
+const getPricing = (channelId: number | null | undefined, model: string): ModelPricing | null => {
   if (!channelId) return null;
   return pricingMap.value.get(`${channelId}:${model}`) || null;
 };
