@@ -841,7 +841,18 @@ const retryLast = () => {
 
 const copyMessage = async (text: string) => {
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     toast.success('已复制到剪贴板');
   } catch {
     toast.error('复制失败');

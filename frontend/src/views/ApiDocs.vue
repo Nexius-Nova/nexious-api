@@ -986,9 +986,24 @@ with open(f"speech.{data['format']}", "wb") as f:
 print("Audio saved!")`;
 
 // ── Copy ─────────────────────────────────────
-const copyCode = (code: string) => {
-  navigator.clipboard.writeText(code);
-  toast.success('已复制到剪贴板');
+const copyCode = async (code: string) => {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(code);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    toast.success('已复制到剪贴板');
+  } catch {
+    toast.error('复制失败');
+  }
 };
 </script>
 
