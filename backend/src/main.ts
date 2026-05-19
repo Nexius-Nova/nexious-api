@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { json } from 'express';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -53,6 +54,7 @@ async function seedSuperAdmin(prisma: PrismaService) {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
+  app.use(json({ limit: '10mb' }));
   app.setGlobalPrefix('api');
 
   // Enable request validation with DTOs
