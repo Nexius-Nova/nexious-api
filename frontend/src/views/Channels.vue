@@ -718,4 +718,9 @@ onMounted(fetchChannels);
 .form-textarea:focus {
   border-color: var(--accent-blue);
 }
+
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
 </style>
