@@ -126,16 +126,16 @@
       <div class="billing-section">
         <h4 class="section-title">余额设置</h4>
         <div class="form-group">
-          <SwitchToggle v-model="form.balanceEnabled" :label="form.balanceEnabled ? '已启用余额查询' : '禁用余额查询'" />
+          <SwitchToggle v-model="formBalanceEnabled" :label="formBalanceEnabled ? '已启用余额查询' : '禁用余额查询'" />
         </div>
-        <div v-if="form.balanceEnabled" class="form-row">
+        <div v-if="formBalanceEnabled" class="form-row">
           <div class="form-group">
             <label class="form-label">余额接口类型</label>
             <SelectField v-model="balanceApiTypeModel" :options="balanceApiOptions" placeholder="openai" />
           </div>
-          <FormInput v-model="form.currency" label="币种" placeholder="USD" />
+          <FormInput v-model="formCurrency" label="币种" placeholder="USD" />
         </div>
-        <div v-if="form.balanceEnabled" class="form-group">
+        <div v-if="formBalanceEnabled" class="form-group">
           <label class="form-label">余额接口配置 (JSON)</label>
           <textarea
             v-model="balanceApiConfigModel"
@@ -266,6 +266,20 @@ const balanceApiConfigModel = computed({
   get: () => form.value.balanceApiConfig ?? '',
   set: (value: string) => {
     form.value.balanceApiConfig = value;
+  },
+});
+
+const formBalanceEnabled = computed({
+  get: () => form.value.balanceEnabled ?? false,
+  set: (value: boolean) => {
+    form.value.balanceEnabled = value;
+  },
+});
+
+const formCurrency = computed({
+  get: () => form.value.currency ?? 'USD',
+  set: (value: string) => {
+    form.value.currency = value;
   },
 });
 
