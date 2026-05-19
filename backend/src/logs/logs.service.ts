@@ -240,7 +240,7 @@ export class LogsService {
     >(
       `SELECT
         DATE(DATE_ADD(createdAt, INTERVAL 8 HOUR)) AS \`date\`,
-        SUM(totalCost) AS totalCost,
+        SUM(total_cost) AS totalCost,
         COUNT(*) AS requestCount
       FROM \`Log\`
       WHERE createdAt >= ?
