@@ -136,6 +136,7 @@
           <div class="form-group">
             <label class="form-label">币种</label>
             <SelectField v-model="formCurrency" :options="currencyOptions" placeholder="USD" :allow-custom="true" search-placeholder="搜索或输入自定义币种..." />
+            <p class="form-hint">余额轮询后自动从官方接口获取，此处作为兜底值</p>
           </div>
         </div>
         <div v-if="formBalanceEnabled" class="form-group">
