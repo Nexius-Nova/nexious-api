@@ -3,7 +3,8 @@ import { ProviderAdapter, ProviderBalanceInfo } from './provider-adapter.interfa
 
 /**
  * Adapter for DeepSeek balance API.
- * Endpoint: GET {baseUrl}/user/balance
+ * Official endpoint: GET https://api.deepseek.com/user/balance
+ * Handles baseUrl with or without /v1 path prefix.
  */
 export class DeepSeekAdapter implements ProviderAdapter {
   async fetchBalance(channel: {
@@ -18,8 +19,9 @@ export class DeepSeekAdapter implements ProviderAdapter {
       } catch {}
     }
 
-    const baseUrl = channel.baseUrl.replace(/\/$/, '');
-    const url = config.balanceUrl || `${baseUrl}/user/balance`;
+    // Strip trailing slash and version path (e.g. /v1) — balance endpoint is at domain root
+    const root = channel.baseUrl.replace(/\/$/, '').replace(/\/v\d+$/, '');
+    const url = config.balanceUrl || `${root}/user/balance`;
 
     const response = await axios.get(url, {
       headers: { Authorization: `Bearer ${channel.apiKey}` },

@@ -89,6 +89,8 @@ defineEmits<{
 
 .modal-body {
   padding: 20px 24px;
+  max-height: calc(85vh - 130px);
+  overflow-y: auto;
 }
 
 .modal-footer {

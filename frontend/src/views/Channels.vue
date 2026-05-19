@@ -133,7 +133,10 @@
             <label class="form-label">余额接口类型</label>
             <SelectField v-model="balanceApiTypeModel" :options="balanceApiOptions" placeholder="openai" />
           </div>
-          <FormInput v-model="formCurrency" label="币种" placeholder="USD" />
+          <div class="form-group">
+            <label class="form-label">币种</label>
+            <SelectField v-model="formCurrency" :options="currencyOptions" placeholder="USD" :allow-custom="true" search-placeholder="搜索或输入自定义币种..." />
+          </div>
         </div>
         <div v-if="formBalanceEnabled" class="form-group">
           <label class="form-label">余额接口配置 (JSON)</label>
@@ -205,6 +208,15 @@ const balanceApiOptions = [
   { value: 'openai-compatible', label: 'OpenAI 兼容 (通用)' },
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'deepseek-compatible', label: 'DeepSeek 兼容 (通用)' },
+];
+
+const currencyOptions = [
+  { value: 'USD', label: 'USD - 美元' },
+  { value: 'CNY', label: 'CNY - 人民币' },
+  { value: 'EUR', label: 'EUR - 欧元' },
+  { value: 'GBP', label: 'GBP - 英镑' },
+  { value: 'JPY', label: 'JPY - 日元' },
+  { value: 'KRW', label: 'KRW - 韩元' },
 ];
 
 const channels = ref<Channel[]>([]);
