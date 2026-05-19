@@ -96,6 +96,7 @@
             >
               <span class="channel-row-dot" :class="ch.status ? 'active' : 'inactive'"></span>
               <span class="channel-row-name">{{ ch.name }}</span>
+              <span v-if="getPricing(ch.id, model.name)" class="channel-row-price">{{ formatPricing(getPricing(ch.id, model.name)!) }}</span>
               <span class="channel-row-weight">×{{ ch.weight }}</span>
             </div>
           </div>
@@ -165,6 +166,7 @@
                   <div class="channel-detail-right">
                     <span :class="['status-dot-sm', ch.status ? 'active' : 'inactive']"></span>
                     <span class="channel-detail-status">{{ ch.status ? '启用' : '禁用' }}</span>
+                    <span v-if="selectedModel && getPricing(ch.id, selectedModel.name)" class="channel-detail-price">{{ formatPricing(getPricing(ch.id, selectedModel.name)!) }}</span>
                     <span class="channel-detail-weight">权重 {{ ch.weight }}</span>
                   </div>
                 </div>
@@ -188,7 +190,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import api from '../api';
-import type { Channel } from '../types';
+import { pricingApi } from '../api/pricing';
+import type { Channel, ModelPricing } from '../types';
 import { getIconInfo } from '../utils/icons';
 import ModelIcon from '../components/ModelIcon.vue';
 
@@ -198,6 +201,7 @@ const providerFilter = ref('');
 const typeFilter = ref('');
 const detailVisible = ref(false);
 const selectedModel = ref<ModelEntry | null>(null);
+const pricingMap = ref<Map<string, ModelPricing>>(new Map());
 
 const modelTypeOptions = [
   { value: 'text', label: '文本' },
@@ -293,6 +297,28 @@ const openDetail = (model: ModelEntry) => {
   detailVisible.value = true;
 };
 
+const fetchPricing = async () => {
+  try {
+    const list = await pricingApi.list();
+    const map = new Map<string, ModelPricing>();
+    for (const p of list) {
+      map.set(`${p.channelId}:${p.model}`, p);
+    }
+    pricingMap.value = map;
+  } catch {}
+};
+
+const getPricing = (channelId: number | undefined, model: string): ModelPricing | null => {
+  if (!channelId) return null;
+  return pricingMap.value.get(`${channelId}:${model}`) || null;
+};
+
+const formatPricing = (p: ModelPricing) => {
+  const input = Number(p.inputPricePer1M) || 0;
+  const output = Number(p.outputPricePer1M) || 0;
+  return `${p.currency} ${input.toFixed(4)}/${output.toFixed(4)}`;
+};
+
 const typeLabel = (t: string) => {
   const map: Record<string, string> = { text: '文本', image: '图片', video: '视频', audio: '音频' };
   return map[t] || t;
@@ -308,7 +334,9 @@ const endpointForType = (t: string) => {
   return map[t] || 'POST /v1/chat/completions';
 };
 
-onMounted(fetchChannels);
+onMounted(() => {
+  Promise.all([fetchChannels(), fetchPricing()]);
+});
 </script>
 
 <style scoped>
@@ -650,6 +678,15 @@ onMounted(fetchChannels);
   flex-shrink: 0;
 }
 
+.channel-row-price {
+  font-size: 0.6rem;
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  margin-left: auto;
+  margin-right: 6px;
+}
+
 /* Card footer */
 .model-card-footer {
   display: flex;
@@ -935,6 +972,13 @@ onMounted(fetchChannels);
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--bg-input);
+}
+
+.channel-detail-price {
+  font-size: 0.72rem;
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+  font-weight: 500;
 }
 
 .modal-footer {

@@ -3,7 +3,7 @@
     <div class="view-header">
       <div class="header-text">
         <h2>模型定价</h2>
-        <p>配置每个渠道下每个模型的价格，用于计算请求金额。</p>
+        <p>配置每个渠道下每个模型的价格（每 1M tokens），用于计算请求金额。</p>
       </div>
       <button class="btn-primary" @click="openDialog()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px">
@@ -18,11 +18,11 @@
       <template #cell-channel="{ row }">
         <span class="channel-name">{{ row.channel?.name || '渠道 #' + row.channelId }}</span>
       </template>
-      <template #cell-inputPricePer1K="{ row }">
-        <code class="price-code">${{ formatPrice(row.inputPricePer1K) }} / 1K</code>
+      <template #cell-inputPricePer1M="{ row }">
+        <code class="price-code">${{ formatPrice(row.inputPricePer1M) }} / 1M</code>
       </template>
-      <template #cell-outputPricePer1K="{ row }">
-        <code class="price-code">${{ formatPrice(row.outputPricePer1K) }} / 1K</code>
+      <template #cell-outputPricePer1M="{ row }">
+        <code class="price-code">${{ formatPrice(row.outputPricePer1M) }} / 1M</code>
       </template>
       <template #cell-currency="{ row }">
         <span class="currency-tag">{{ row.currency }}</span>
@@ -62,8 +62,8 @@
       <FormInput v-else v-model="form.model" label="模型" placeholder="gpt-4o" />
 
       <div class="form-row">
-        <FormInput v-model="formInputPrice" label="输入价格 /1K tokens" placeholder="0.0025" />
-        <FormInput v-model="formOutputPrice" label="输出价格 /1K tokens" placeholder="0.01" />
+        <FormInput v-model="formInputPrice" label="输入价格 /1M tokens" placeholder="2.50" />
+        <FormInput v-model="formOutputPrice" label="输出价格 /1M tokens" placeholder="10.00" />
       </div>
       <div class="form-group">
         <label class="form-label">币种</label>
@@ -115,8 +115,8 @@ const form = ref<ModelPricing>({
   id: null,
   channelId: 0,
   model: '',
-  inputPricePer1K: '0',
-  outputPricePer1K: '0',
+  inputPricePer1M: '0',
+  outputPricePer1M: '0',
   currency: 'USD',
 });
 
@@ -144,20 +144,20 @@ const formChannelId = computed({
 const columns: ColumnDef[] = [
   { key: 'channel', label: '渠道' },
   { key: 'model', label: '模型' },
-  { key: 'inputPricePer1K', label: '输入价格' },
-  { key: 'outputPricePer1K', label: '输出价格' },
+  { key: 'inputPricePer1M', label: '输入价格' },
+  { key: 'outputPricePer1M', label: '输出价格' },
   { key: 'currency', label: '币种' },
   { key: 'actions', label: '操作', align: 'right' },
 ];
 
 const formInputPrice = computed({
-  get: () => String(form.value.inputPricePer1K || ''),
-  set: (v: string) => { form.value.inputPricePer1K = v; },
+  get: () => String(form.value.inputPricePer1M || ''),
+  set: (v: string) => { form.value.inputPricePer1M = v; },
 });
 
 const formOutputPrice = computed({
-  get: () => String(form.value.outputPricePer1K || ''),
-  set: (v: string) => { form.value.outputPricePer1K = v; },
+  get: () => String(form.value.outputPricePer1M || ''),
+  set: (v: string) => { form.value.outputPricePer1M = v; },
 });
 
 const modelList = computed(() =>
@@ -201,8 +201,8 @@ const openDialog = (row: ModelPricing | null = null) => {
       id: null,
       channelId: channels.value[0]?.id! ?? 0,
       model: '',
-      inputPricePer1K: '0',
-      outputPricePer1K: '0',
+      inputPricePer1M: '0',
+      outputPricePer1M: '0',
       currency: 'USD',
     };
   }
@@ -211,7 +211,7 @@ const openDialog = (row: ModelPricing | null = null) => {
 
 const cleanPayload = (raw: Record<string, any>) => {
   const out: Record<string, any> = {};
-  for (const k of ['channelId', 'model', 'inputPricePer1K', 'outputPricePer1K', 'currency']) {
+  for (const k of ['channelId', 'model', 'inputPricePer1M', 'outputPricePer1M', 'currency']) {
     if (k in raw) {
       out[k] = raw[k];
     }

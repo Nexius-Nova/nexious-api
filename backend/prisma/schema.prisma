@@ -114,8 +114,8 @@ model ModelPricing {
   channelId        Int      @map("channel_id")
   channel          Channel? @relation("ChannelPricing", fields: [channelId], references: [id])
   model            String
-  inputPricePer1K  Decimal  @db.Decimal(18, 8) @map("input_price_per_1k")
-  outputPricePer1K Decimal  @db.Decimal(18, 8) @map("output_price_per_1k")
+  inputPricePer1M  Decimal  @db.Decimal(18, 8) @map("input_price_per_1k")
+  outputPricePer1M Decimal  @db.Decimal(18, 8) @map("output_price_per_1k")
   currency         String   @default("USD")
   effectiveAt      DateTime @default(now()) @map("effective_at")
   createdAt        DateTime @default(now())

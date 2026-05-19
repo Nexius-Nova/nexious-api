@@ -9,8 +9,8 @@ export interface CostCalculation {
   currency: string;
   pricingSnapshot: {
     model: string;
-    inputPricePer1K: number | string;
-    outputPricePer1K: number | string;
+    inputPricePer1M: number | string;
+    outputPricePer1M: number | string;
     currency: string;
   };
 }
@@ -39,8 +39,8 @@ export class PricingService {
     return this.prisma.modelPricing.create({
       data: {
         ...rest,
-        inputPricePer1K: new Prisma.Decimal(rest.inputPricePer1K || 0),
-        outputPricePer1K: new Prisma.Decimal(rest.outputPricePer1K || 0),
+        inputPricePer1M: new Prisma.Decimal(rest.inputPricePer1M || 0),
+        outputPricePer1M: new Prisma.Decimal(rest.outputPricePer1M || 0),
       },
     });
   }
@@ -48,11 +48,11 @@ export class PricingService {
   async update(id: number, data: any) {
     const { id: _, createdAt, updatedAt, channelId, ...rest } = data;
     const updateData: any = { ...rest };
-    if (updateData.inputPricePer1K !== undefined) {
-      updateData.inputPricePer1K = new Prisma.Decimal(updateData.inputPricePer1K);
+    if (updateData.inputPricePer1M !== undefined) {
+      updateData.inputPricePer1M = new Prisma.Decimal(updateData.inputPricePer1M);
     }
-    if (updateData.outputPricePer1K !== undefined) {
-      updateData.outputPricePer1K = new Prisma.Decimal(updateData.outputPricePer1K);
+    if (updateData.outputPricePer1M !== undefined) {
+      updateData.outputPricePer1M = new Prisma.Decimal(updateData.outputPricePer1M);
     }
     return this.prisma.modelPricing.update({ where: { id }, data: updateData });
   }
@@ -63,13 +63,11 @@ export class PricingService {
 
   /**
    * Find the best matching pricing for a channel + model combination.
-   * Looks for exact model match first, then falls back to channel-only pricing.
    */
   async findPricing(
     channelId: number,
     model: string,
   ): Promise<CostCalculation['pricingSnapshot'] | null> {
-    // Try exact channelId + model match
     const pricing = await this.prisma.modelPricing.findFirst({
       where: { channelId, model },
       orderBy: { effectiveAt: 'desc' },
@@ -78,8 +76,8 @@ export class PricingService {
     if (pricing) {
       return {
         model: pricing.model,
-        inputPricePer1K: pricing.inputPricePer1K.toString(),
-        outputPricePer1K: pricing.outputPricePer1K.toString(),
+        inputPricePer1M: pricing.inputPricePer1M.toString(),
+        outputPricePer1M: pricing.outputPricePer1M.toString(),
         currency: pricing.currency,
       };
     }
@@ -89,6 +87,7 @@ export class PricingService {
 
   /**
    * Calculate cost for a single request.
+   * Price is per 1M tokens; divides token counts by 1,000,000.
    * Returns null if no pricing is configured (cost stays 0).
    */
   async calculateCost(
@@ -100,12 +99,12 @@ export class PricingService {
     const pricing = await this.findPricing(channelId, model);
     if (!pricing) return null;
 
-    const inputPrice = Number(pricing.inputPricePer1K);
-    const outputPrice = Number(pricing.outputPricePer1K);
+    const inputPrice = Number(pricing.inputPricePer1M);
+    const outputPrice = Number(pricing.outputPricePer1M);
     const currency = pricing.currency;
 
-    const inputCost = (promptTokens / 1000) * inputPrice;
-    const outputCost = (completionTokens / 1000) * outputPrice;
+    const inputCost = (promptTokens / 1000000) * inputPrice;
+    const outputCost = (completionTokens / 1000000) * outputPrice;
     const totalCost = inputCost + outputCost;
 
     return {

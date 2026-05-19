@@ -12,12 +12,12 @@ export class CreateModelPricingDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  inputPricePer1K: number;
+  inputPricePer1M: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  outputPricePer1K: number;
+  outputPricePer1M: number;
 
   @IsOptional()
   @IsString()
@@ -26,6 +26,11 @@ export class CreateModelPricingDto {
 
 export class UpdateModelPricingDto {
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  channelId?: number;
+
+  @IsOptional()
   @IsString()
   model?: string;
 
@@ -33,13 +38,13 @@ export class UpdateModelPricingDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  inputPricePer1K?: number;
+  inputPricePer1M?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  outputPricePer1K?: number;
+  outputPricePer1M?: number;
 
   @IsOptional()
   @IsString()

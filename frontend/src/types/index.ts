@@ -60,8 +60,8 @@ export interface ModelPricing {
   id: number | null;
   channelId: number;
   model: string;
-  inputPricePer1K: number | string;
-  outputPricePer1K: number | string;
+  inputPricePer1M: number | string;
+  outputPricePer1M: number | string;
   currency: string;
   effectiveAt?: string;
   channel?: { id: number; name: string };

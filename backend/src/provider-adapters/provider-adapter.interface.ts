@@ -13,8 +13,8 @@ export interface ProviderUsageInfo {
 
 export interface ProviderPriceInfo {
   model: string;
-  inputPricePer1K: number;
-  outputPricePer1K: number;
+  inputPricePer1M: number;
+  outputPricePer1M: number;
   currency: string;
 }
 
