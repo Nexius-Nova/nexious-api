@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   ProviderAdapter,
   OpenAIAdapter,
+  DeepSeekAdapter,
 } from '../provider-adapters';
 
 @Injectable()
@@ -14,7 +15,8 @@ export class BillingService {
     // Register built-in adapters
     this.adapters.set('openai', new OpenAIAdapter());
     this.adapters.set('openai-compatible', new OpenAIAdapter());
-    // Future: this.adapters.set('anthropic', new AnthropicAdapter());
+    this.adapters.set('deepseek', new DeepSeekAdapter());
+    this.adapters.set('deepseek-compatible', new DeepSeekAdapter());
   }
 
   getAdapter(type: string): ProviderAdapter | null {

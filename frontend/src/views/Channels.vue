@@ -201,8 +201,10 @@ const visibilityOptions = [
 ];
 
 const balanceApiOptions = [
-  { value: 'openai', label: 'OpenAI 兼容' },
+  { value: 'openai', label: 'OpenAI' },
   { value: 'openai-compatible', label: 'OpenAI 兼容 (通用)' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'deepseek-compatible', label: 'DeepSeek 兼容 (通用)' },
 ];
 
 const channels = ref<Channel[]>([]);
