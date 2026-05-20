@@ -4,6 +4,7 @@ import {
   ProviderAdapter,
   OpenAIAdapter,
   DeepSeekAdapter,
+  KimiAdapter,
 } from '../provider-adapters';
 
 @Injectable()
@@ -17,6 +18,8 @@ export class BillingService {
     this.adapters.set('openai-compatible', new OpenAIAdapter());
     this.adapters.set('deepseek', new DeepSeekAdapter());
     this.adapters.set('deepseek-compatible', new DeepSeekAdapter());
+    this.adapters.set('kimi', new KimiAdapter());
+    this.adapters.set('moonshot', new KimiAdapter());
   }
 
   getAdapter(type: string): ProviderAdapter | null {

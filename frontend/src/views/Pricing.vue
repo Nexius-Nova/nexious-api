@@ -46,24 +46,44 @@
         <SelectField v-model="formChannelId" :options="channelOptions" placeholder="选择渠道" />
       </div>
 
-      <!-- Batch model input (create mode) -->
-      <div v-if="!form.id" class="form-group">
-        <label class="form-label">模型（每行一个，可批量添加）</label>
-        <textarea
-          v-model="formModels"
-          class="form-textarea"
-          rows="4"
-          placeholder="gpt-4o&#10;gpt-4o-mini&#10;gpt-3.5-turbo"
-        ></textarea>
-        <p class="form-hint">{{ modelCountHint }}</p>
-      </div>
-
-      <!-- Single model input (edit mode) -->
-      <FormInput v-else v-model="form.model" label="模型" placeholder="gpt-4o" />
-
-      <div class="form-row">
-        <FormInput v-model="formInputPrice" label="输入价格 /1M tokens" placeholder="2.50" />
-        <FormInput v-model="formOutputPrice" label="输出价格 /1M tokens" placeholder="10.00" />
+      <!-- Model pricing entries -->
+      <div class="form-group">
+        <label class="form-label">{{ form.id ? '模型' : '模型定价（可批量添加）' }}</label>
+        <div class="pricing-entries">
+          <div v-for="(entry, index) in pricingEntries" :key="index" class="pricing-entry">
+            <SelectField
+              v-model="entry.model"
+              :options="currentChannelModels"
+              placeholder="选择模型"
+              :allow-custom="true"
+              class="pricing-model-input"
+            />
+            <input
+              v-model="entry.inputPrice"
+              class="form-input pricing-price-input"
+              placeholder="输入价"
+            />
+            <input
+              v-model="entry.outputPrice"
+              class="form-input pricing-price-input"
+              placeholder="输出价"
+            />
+            <button class="icon-btn-sm pricing-remove-btn" @click="pricingEntries.splice(index, 1)" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <button v-if="!form.id" class="btn-ghost btn-add-pricing" @click="pricingEntries.push({ model: '', inputPrice: '0', outputPrice: '0' })" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          添加模型
+        </button>
+        <p v-if="!form.id" class="form-hint">{{ modelCountHint }}</p>
       </div>
       <div class="form-group">
         <label class="form-label">币种</label>
@@ -97,7 +117,6 @@ import type { ModelPricing, Channel } from '../types';
 import DataTable from '../components/DataTable.vue';
 import type { ColumnDef } from '../components/DataTable.vue';
 import Modal from '../components/Modal.vue';
-import FormInput from '../components/FormInput.vue';
 import SelectField from '../components/SelectField.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useToast } from '../composables/useToast';
@@ -108,8 +127,14 @@ const channels = ref<Channel[]>([]);
 const dialogVisible = ref(false);
 const confirmVisible = ref(false);
 const deletingId = ref<number | null>(null);
-const formModels = ref('');
 const saving = ref(false);
+
+interface PricingEntry {
+  model: string;
+  inputPrice: string;
+  outputPrice: string;
+}
+const pricingEntries = ref<PricingEntry[]>([]);
 
 const form = ref<ModelPricing>({
   id: null,
@@ -126,6 +151,15 @@ const channelOptions = computed(() =>
     label: ch.name,
   })),
 );
+
+const currentChannelModels = computed(() => {
+  const ch = channels.value.find(c => c.id === form.value.channelId);
+  if (!ch || !ch.models) return [];
+  return ch.models.split(',').map(m => {
+    const trimmed = m.trim();
+    return { value: trimmed, label: trimmed };
+  });
+});
 
 const currencyOptions = [
   { value: 'USD', label: 'USD - 美元' },
@@ -150,25 +184,8 @@ const columns: ColumnDef[] = [
   { key: 'actions', label: '操作', align: 'right' },
 ];
 
-const formInputPrice = computed({
-  get: () => String(form.value.inputPricePer1M || ''),
-  set: (v: string) => { form.value.inputPricePer1M = v; },
-});
-
-const formOutputPrice = computed({
-  get: () => String(form.value.outputPricePer1M || ''),
-  set: (v: string) => { form.value.outputPricePer1M = v; },
-});
-
-const modelList = computed(() =>
-  formModels.value
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean),
-);
-
 const modelCountHint = computed(() => {
-  const count = modelList.value.length;
+  const count = pricingEntries.value.filter(e => e.model.trim()).length;
   if (count === 0) return '请输入至少一个模型名称';
   return `将创建 ${count} 条定价记录`;
 });
@@ -193,9 +210,13 @@ const fetchChannels = async () => {
 };
 
 const openDialog = (row: ModelPricing | null = null) => {
-  formModels.value = '';
   if (row) {
     form.value = { ...row };
+    pricingEntries.value = [{
+      model: row.model,
+      inputPrice: String(row.inputPricePer1M || '0'),
+      outputPrice: String(row.outputPricePer1M || '0'),
+    }];
   } else {
     form.value = {
       id: null,
@@ -205,6 +226,7 @@ const openDialog = (row: ModelPricing | null = null) => {
       outputPricePer1M: '0',
       currency: 'USD',
     };
+    pricingEntries.value = [{ model: '', inputPrice: '0', outputPrice: '0' }];
   }
   dialogVisible.value = true;
 };
@@ -223,20 +245,31 @@ const savePricing = async () => {
   saving.value = true;
   try {
     if (form.value.id) {
-      await pricingApi.update(form.value.id, cleanPayload(form.value));
+      const entry = pricingEntries.value[0];
+      await pricingApi.update(form.value.id, {
+        ...cleanPayload(form.value),
+        model: entry.model,
+        inputPricePer1M: entry.inputPrice,
+        outputPricePer1M: entry.outputPrice,
+      });
       toast.success('定价已更新');
     } else {
-      const models = modelList.value;
-      if (models.length === 0) {
+      const entries = pricingEntries.value.filter(e => e.model.trim());
+      if (entries.length === 0) {
         toast.error('请输入至少一个模型名称');
         saving.value = false;
         return;
       }
       const base = cleanPayload(form.value);
-      for (const model of models) {
-        await pricingApi.create({ ...base, model });
+      for (const entry of entries) {
+        await pricingApi.create({
+          ...base,
+          model: entry.model.trim(),
+          inputPricePer1M: entry.inputPrice,
+          outputPricePer1M: entry.outputPrice,
+        });
       }
-      toast.success(`已创建 ${models.length} 条定价`);
+      toast.success(`已创建 ${entries.length} 条定价`);
     }
     dialogVisible.value = false;
     fetchPricings();
@@ -355,22 +388,45 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
-.form-textarea {
-  width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  font-family: var(--font-mono);
-  outline: none;
-  resize: vertical;
-  min-height: 100px;
+/* Pricing entries */
+.pricing-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
-.form-textarea:focus {
-  border-color: var(--accent-blue);
+.pricing-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pricing-model-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pricing-price-input {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.pricing-remove-btn {
+  flex-shrink: 0;
+}
+
+.pricing-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+}
+
+.btn-add-pricing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 6px 12px;
 }
 
 .form-hint {

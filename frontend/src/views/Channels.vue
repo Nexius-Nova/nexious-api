@@ -108,8 +108,38 @@
       </div>
       <FormInput v-model="form.baseUrl" label="基础 URL" placeholder="https://api.openai.com" />
       <FormInput v-model="form.apiKey" label="API 密钥" type="password" :placeholder="form.id ? '留空则不修改密钥' : 'sk-...'" />
-      <FormInput v-model="form.models" label="支持的模型 (逗号分隔)" placeholder="gpt-4,gpt-3.5-turbo" />
-      <FormTextarea v-model="formModelTypes" label="模型类型 (JSON 格式)" :rows="3" placeholder='{"gpt-4":"text","dall-e-3":"image"}' hint="可选类型: text, image, video, audio。不填则默认为 text。" />
+      <!-- Dynamic model list -->
+      <div class="form-group">
+        <label class="form-label">支持的模型</label>
+        <div class="models-list">
+          <div v-for="(entry, index) in modelsList" :key="index" class="model-entry">
+            <input
+              v-model="entry.name"
+              class="form-input model-name-input"
+              placeholder="模型名称，如 gpt-4"
+            />
+            <SelectField
+              v-model="entry.type"
+              :options="modelTypeOptions"
+              placeholder="text"
+              class="model-type-select"
+            />
+            <button class="icon-btn-sm model-remove-btn" @click="removeModelEntry(index)" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <button class="btn-ghost btn-add-model" @click="addModelEntry" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          添加模型
+        </button>
+      </div>
       <div class="form-row">
         <FormNumber v-model="form.weight" label="优先级权重" />
         <div class="form-group">
@@ -177,7 +207,6 @@ import ConfirmDialog from '../components/ConfirmDialog.vue';
 import SelectField from '../components/SelectField.vue';
 import FormInput from '../components/FormInput.vue';
 import FormNumber from '../components/FormNumber.vue';
-import FormTextarea from '../components/FormTextarea.vue';
 import SwitchToggle from '../components/SwitchToggle.vue';
 import Modal from '../components/Modal.vue';
 import { useToast } from '../composables/useToast';
@@ -209,6 +238,7 @@ const balanceApiOptions = [
   { value: 'openai-compatible', label: 'OpenAI 兼容 (通用)' },
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'deepseek-compatible', label: 'DeepSeek 兼容 (通用)' },
+  { value: 'kimi', label: 'Kimi / Moonshot' },
 ];
 
 const currencyOptions = [
@@ -218,6 +248,13 @@ const currencyOptions = [
   { value: 'GBP', label: 'GBP - 英镑' },
   { value: 'JPY', label: 'JPY - 日元' },
   { value: 'KRW', label: 'KRW - 韩元' },
+];
+
+const modelTypeOptions = [
+  { value: 'text', label: 'text' },
+  { value: 'image', label: 'image' },
+  { value: 'video', label: 'video' },
+  { value: 'audio', label: 'audio' },
 ];
 
 const channels = ref<Channel[]>([]);
@@ -245,6 +282,30 @@ const form = ref<Channel>({
 const toast = useToast();
 const authStore = useAuthStore();
 
+// Dynamic model list for the tag editor UI
+interface ModelEntry { name: string; type: string }
+const modelsList = ref<ModelEntry[]>([]);
+
+const addModelEntry = () => {
+  modelsList.value.push({ name: '', type: 'text' });
+};
+
+const removeModelEntry = (index: number) => {
+  modelsList.value.splice(index, 1);
+};
+
+const syncFormFromModelsList = () => {
+  const entries = modelsList.value.filter(e => e.name.trim());
+  form.value.models = entries.map(e => e.name.trim()).join(',');
+  const types: Record<string, string> = {};
+  entries.forEach(e => {
+    if (e.type && e.type !== 'text') {
+      types[e.name.trim()] = e.type;
+    }
+  });
+  form.value.modelTypes = Object.keys(types).length > 0 ? JSON.stringify(types) : '';
+};
+
 const columns: ColumnDef[] = [
   { key: 'type', label: '提供商' },
   { key: 'status', label: '状态' },
@@ -257,12 +318,6 @@ const columns: ColumnDef[] = [
 ];
 
 const maxWeight = computed(() => Math.max(...channels.value.map((c) => c.weight), 1));
-const formModelTypes = computed({
-  get: () => form.value.modelTypes ?? '',
-  set: (value: string) => {
-    form.value.modelTypes = value;
-  },
-});
 const formVisibility = computed({
   get: () => form.value.visibility ?? 'private',
   set: (value: string) => {
@@ -312,6 +367,14 @@ const openDialog = (row: Channel | null = null) => {
     form.value = { ...row };
     // Clear apiKey — backend will keep the existing key if a new one is not provided
     form.value.apiKey = '';
+    // Parse existing models/modelTypes into the tag list
+    const names = (row.models || '').split(',').filter(Boolean);
+    let types: Record<string, string> = {};
+    try { types = JSON.parse(row.modelTypes || '{}'); } catch {}
+    modelsList.value = names.map(n => ({
+      name: n.trim(),
+      type: types[n.trim()] || 'text',
+    }));
   } else {
     form.value = {
       id: null,
@@ -329,6 +392,7 @@ const openDialog = (row: Channel | null = null) => {
       balanceApiType: 'openai-compatible',
       balanceApiConfig: '',
     };
+    modelsList.value = [];
   }
   dialogVisible.value = true;
 };
@@ -717,6 +781,47 @@ onMounted(fetchChannels);
 
 .form-textarea:focus {
   border-color: var(--accent-blue);
+}
+
+/* Dynamic model list */
+.models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.model-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-name-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-type-select {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.model-remove-btn {
+  flex-shrink: 0;
+}
+
+.model-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+}
+
+.btn-add-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 6px 12px;
 }
 
 .form-hint {
