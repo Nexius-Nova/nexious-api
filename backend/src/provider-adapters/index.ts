@@ -2,4 +2,5 @@ export { ProviderAdapter, ProviderBalanceInfo, ProviderUsageInfo, ProviderPriceI
 export { OpenAIAdapter } from './openai-adapter';
 export { DeepSeekAdapter } from './deepseek-adapter';
 export { KimiAdapter } from './kimi-adapter';
+export { GenericAdapter } from './generic-adapter';
 

@@ -169,7 +169,22 @@
             <p class="form-hint">余额轮询后自动从官方接口获取，此处作为兜底值</p>
           </div>
         </div>
-        <div v-if="formBalanceEnabled" class="form-group">
+        <template v-if="formBalanceEnabled">
+          <!-- Generic adapter: structured fields -->
+          <template v-if="balanceApiTypeModel === 'generic'">
+          <div class="form-group">
+            <label class="form-label">余额接口 URL</label>
+            <FormInput v-model="genericUrl" placeholder="https://api.moonshot.cn/v1/users/me/balance" />
+            <p class="form-hint">完整 URL（https://...）或相对路径（如 /v1/users/me/balance），相对路径会拼接到基础 URL 后</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">余额字段路径</label>
+            <FormInput v-model="genericResponsePath" placeholder="data.available_balance" />
+            <p class="form-hint">响应 JSON 中余额值的路径，用 . 分隔嵌套。如 data.balance、available_balance</p>
+          </div>
+        </template>
+        <!-- Other adapters: JSON config for advanced overrides -->
+        <div v-else class="form-group">
           <label class="form-label">余额接口配置 (JSON)</label>
           <textarea
             v-model="balanceApiConfigModel"
@@ -178,6 +193,7 @@
             placeholder='{"balanceUrl":"https://custom/api/balance"}'
           ></textarea>
         </div>
+        </template>
       </div>
       <template #footer>
         <button class="btn-ghost" @click="dialogVisible = false">取消</button>
@@ -239,6 +255,7 @@ const balanceApiOptions = [
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'deepseek-compatible', label: 'DeepSeek 兼容 (通用)' },
   { value: 'kimi', label: 'Kimi / Moonshot' },
+  { value: 'generic', label: '自定义 (Generic)' },
 ];
 
 const currencyOptions = [
@@ -281,6 +298,10 @@ const form = ref<Channel>({
 });
 const toast = useToast();
 const authStore = useAuthStore();
+
+// Generic adapter structured config fields
+const genericUrl = ref('');
+const genericResponsePath = ref('');
 
 // Dynamic model list for the tag editor UI
 interface ModelEntry { name: string; type: string }
@@ -375,6 +396,11 @@ const openDialog = (row: Channel | null = null) => {
       name: n.trim(),
       type: types[n.trim()] || 'text',
     }));
+    // Parse generic config
+    let cfg: any = {};
+    try { cfg = JSON.parse(row.balanceApiConfig || '{}'); } catch {}
+    genericUrl.value = cfg.balanceUrl || cfg.path || '';
+    genericResponsePath.value = cfg.responsePath || '';
   } else {
     form.value = {
       id: null,
@@ -393,6 +419,8 @@ const openDialog = (row: Channel | null = null) => {
       balanceApiConfig: '',
     };
     modelsList.value = [];
+    genericUrl.value = '';
+    genericResponsePath.value = '';
   }
   dialogVisible.value = true;
 };
@@ -421,6 +449,19 @@ const saveChannel = async () => {
   try {
     // Sync the tag list back to form's comma-string and JSON fields
     syncFormFromModelsList();
+    // Serialize generic adapter fields
+    if (balanceApiTypeModel.value === 'generic') {
+      const cfg: Record<string, any> = {};
+      if (genericUrl.value) {
+        if (/^https?:\/\//.test(genericUrl.value)) {
+          cfg.balanceUrl = genericUrl.value;
+        } else {
+          cfg.path = genericUrl.value;
+        }
+      }
+      if (genericResponsePath.value) cfg.responsePath = genericResponsePath.value;
+      form.value.balanceApiConfig = Object.keys(cfg).length ? JSON.stringify(cfg) : '';
+    }
     if (form.value.id) {
       await api.patch(`/channels/${form.value.id}`, cleanPayload(form.value, true));
     } else {

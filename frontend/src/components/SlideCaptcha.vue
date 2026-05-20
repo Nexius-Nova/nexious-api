@@ -55,7 +55,7 @@
             <canvas
               ref="pieceCanvasRef"
               class="captcha-piece-canvas"
-              :class="{ 'captcha-piece-done': puzzleSuccess }"
+              :class="{ 'captcha-piece-dragging': dragging, 'captcha-piece-done': puzzleSuccess }"
               :style="pieceStyle"
             ></canvas>
             <Transition name="captcha-fade">
@@ -154,6 +154,7 @@ let trackWidth = 0;
 let btnWidth = 0;
 let startX = 0;
 let startLeft = 0;
+let rafPending = false;
 
 const statusText = computed(() => {
   if (status.value === 'success') return '已确认本次操作由真人完成';
@@ -411,8 +412,14 @@ function onStart(e: MouseEvent | TouchEvent) {
 function onMove(e: MouseEvent | TouchEvent) {
   if (!dragging.value) return;
   e.preventDefault();
-  const dx = getClientX(e) - startX;
-  updatePosition(startLeft + dx);
+  if (rafPending) return;
+  rafPending = true;
+  const clientX = getClientX(e);
+  requestAnimationFrame(() => {
+    rafPending = false;
+    const dx = clientX - startX;
+    updatePosition(startLeft + dx);
+  });
 }
 
 function onEnd() {
@@ -672,10 +679,11 @@ onUnmounted(() => {
   display: block;
   cursor: inherit;
   filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.32));
+  will-change: left;
   transition: left 0.18s ease;
 }
 
-.captcha-slider-dragging ~ .captcha-piece-canvas,
+.captcha-piece-dragging,
 .captcha-piece-done {
   transition: none;
 }
@@ -717,6 +725,10 @@ onUnmounted(() => {
   inset: 0 auto 0 0;
   background-color: rgba(var(--accent-blue-rgb), 0.16);
   transition: width 0.08s linear, background-color 0.2s;
+}
+
+.captcha-slider-dragging .captcha-fill {
+  transition: background-color 0.2s;
 }
 
 .captcha-slider-error .captcha-fill {
@@ -763,7 +775,9 @@ onUnmounted(() => {
   background-color: var(--bg-card);
   color: var(--accent-blue);
   cursor: grab;
+  touch-action: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  will-change: left;
   transition: left 0.18s ease, border-color 0.16s, color 0.16s, box-shadow 0.16s;
 }
 
