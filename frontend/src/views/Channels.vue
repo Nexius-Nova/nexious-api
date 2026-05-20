@@ -419,6 +419,8 @@ const cleanPayload = (raw: Record<string, any>, isUpdate: boolean) => {
 
 const saveChannel = async () => {
   try {
+    // Sync the tag list back to form's comma-string and JSON fields
+    syncFormFromModelsList();
     if (form.value.id) {
       await api.patch(`/channels/${form.value.id}`, cleanPayload(form.value, true));
     } else {
