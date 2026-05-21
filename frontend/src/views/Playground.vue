@@ -92,12 +92,9 @@
         <div class="config-field">
           <label class="field-label">
             <span>系统提示词</span>
-            <select v-model="systemPrompt" class="preset-select" title="选择预设提示词模板">
-              <option value="你是一个有帮助的 AI 助手。">默认助手</option>
-              <option value="你是一个资深软件工程师，擅长多种编程语言和系统设计。请提供清晰、有注释的代码示例。">代码专家</option>
-              <option value="你是一个专业翻译，请将用户输入准确翻译为目标语言，保持原文风格和语气。">翻译官</option>
-              <option value="你是一个创意作家，擅长故事创作、文案撰写和内容策划。请用富有感染力的语言回复。">创意作家</option>
-            </select>
+            <span class="preset-select-wrap">
+              <SelectField v-model="systemPrompt" :options="promptPresets" placeholder="选择模板" />
+            </span>
           </label>
           <FormTextarea v-model="systemPrompt" :rows="4" placeholder="你是一个有帮助的 AI 助手..." label="" />
         </div>
@@ -132,7 +129,7 @@
         <div class="config-field">
           <label class="field-label">流式输出</label>
           <SwitchToggle v-model="streamEnabled" :label="streamLabel" />
-          <p class="field-hint">流式输出将实时逐字显示 AI 响应。</p>
+          <p class="field-hint">流式输出将实时逐字显示 AI 响应，关闭后为普通一次性输出。</p>
         </div>
 
         <!-- Top P -->
@@ -401,6 +398,7 @@ import api, { apiBaseURL } from '../api';
 import type { Channel } from '../types';
 import ModelIcon from '../components/ModelIcon.vue';
 import SwitchToggle from '../components/SwitchToggle.vue';
+import SelectField from '../components/SelectField.vue';
 import FormInput from '../components/FormInput.vue';
 import FormTextarea from '../components/FormTextarea.vue';
 import FormNumber from '../components/FormNumber.vue';
@@ -409,7 +407,7 @@ import { useToast } from '../composables/useToast';
 
 const toast = useToast();
 
-const streamLabel = computed(() => streamEnabled.value ? '已开启' : '已关闭');
+const streamLabel = computed(() => streamEnabled.value ? '普通输出' : '流式输出');
 
 // ── Model Config ──
 const channels = ref<Channel[]>([]);
@@ -420,6 +418,14 @@ const modelDropdownRef = ref<HTMLElement | null>(null);
 const modelTriggerRef = ref<HTMLElement | null>(null);
 const modelSearchInput = ref<HTMLInputElement | null>(null);
 const systemPrompt = ref('你是一个有帮助的 AI 助手。');
+
+const promptPresets = [
+  { value: '你是一个有帮助的 AI 助手。', label: '默认助手' },
+  { value: '你是一个资深软件工程师，擅长多种编程语言和系统设计。请提供清晰、有注释的代码示例。', label: '代码专家' },
+  { value: '你是一个专业翻译，请将用户输入准确翻译为目标语言，保持原文风格和语气。', label: '翻译官' },
+  { value: '你是一个创意作家，擅长故事创作、文案撰写和内容策划。请用富有感染力的语言回复。', label: '创意作家' },
+];
+
 const temperature = ref(0.7);
 const maxTokens = ref(4096);
 const topP = ref(1.0);
@@ -661,10 +667,10 @@ const doSend = async (text: string) => {
     temperature: temperature.value,
     maxTokens: maxTokens.value,
     topP: topP.value,
-    stream: streamEnabled.value,
+    stream: !streamEnabled.value,
   };
 
-  if (streamEnabled.value) {
+  if (!streamEnabled.value) {
     await doStreamSend(requestPayload);
   } else {
     await doRegularSend(requestPayload);
@@ -1387,26 +1393,15 @@ const renderContent = (text: string): string => {
   border-radius: 4px;
 }
 
-.preset-select {
-  min-width: 104px;
-  max-width: 128px;
-  height: 28px;
-  font-size: 0.72rem;
-  line-height: 1;
-  padding: 0 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-input);
-  color: var(--text-muted);
-  cursor: pointer;
-  text-overflow: ellipsis;
-  outline: none;
+.preset-select-wrap {
+  width: 110px;
+  flex-shrink: 0;
 }
 
-.preset-select:hover,
-.preset-select:focus {
-  border-color: var(--border-accent);
-  color: var(--text-secondary);
+.preset-select-wrap :deep(.select-trigger) {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  min-height: 28px;
 }
 
 /* Model Selector */

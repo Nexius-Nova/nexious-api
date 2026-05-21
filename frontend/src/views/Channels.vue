@@ -204,7 +204,7 @@
       </div>
       <template #footer>
         <button class="btn-ghost" @click="dialogVisible = false">取消</button>
-        <button class="btn-secondary" @click="testBeforeSave" :disabled="testingBeforeSave">
+        <button class="btn-test-save" @click="testBeforeSave" :disabled="testingBeforeSave">
           {{ testingBeforeSave ? '测试中...' : '测试并保存' }}
         </button>
         <button class="btn-primary" @click="saveChannel">保存渠道</button>
@@ -631,10 +631,10 @@ onMounted(fetchChannels);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  margin-bottom: 12px;
-  border: 1px solid var(--accent-blue);
-  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
 }
 
 .batch-count {
@@ -645,12 +645,20 @@ onMounted(fetchChannels);
 
 .batch-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .btn-sm {
-  padding: 4px 12px;
-  font-size: 0.76rem;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.btn-sm:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
 }
 
 .btn-sm.danger {
@@ -659,6 +667,27 @@ onMounted(fetchChannels);
 
 .btn-sm.danger:hover {
   background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+}
+
+.btn-test-save {
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.btn-test-save:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--accent-green);
+}
+
+.btn-test-save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .row-checkbox {
