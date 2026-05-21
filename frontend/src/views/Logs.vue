@@ -387,10 +387,6 @@ const filterByModel = (model: string) => {
   onFilterChange();
 };
 
-const expandedId = ref<number | null>(null);
-const toggleExpand = (id: number) => {
-  expandedId.value = expandedId.value === id ? null : id;
-};
 
 const exportCSV = () => {
   const headers = ['时间', '模型', 'Token ID', 'Prompt Tokens', 'Completion Tokens', '总Tokens', '费用', 'IP'];

@@ -498,7 +498,6 @@ const messages = ref<ChatMessage[]>([]);
 const chatInput = ref('');
 const isGenerating = ref(false);
 const isTyping = ref(false);
-const isPageLoading = ref(true);
 const messagesContainer = ref<HTMLElement | null>(null);
 const chatInputEl = ref<HTMLTextAreaElement | null>(null);
 let abortGenerating = false;
