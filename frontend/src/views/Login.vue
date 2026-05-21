@@ -401,7 +401,7 @@ async function sendCode() {
       }
     }, 1000);
   } catch (e: any) {
-    const msg = e.response?.data?.message || '发送失败，请稍后再试';
+    const msg = e.response?.data?.error?.message || e.response?.data?.message || '发送失败，请稍后再试';
     error.value = msg;
     toast.error(msg);
   } finally {
@@ -429,7 +429,9 @@ async function onCaptchaVerified(token: string) {
   } catch (e: any) {
     captchaToken.value = '';
     captchaRef.value?.reset();
-    toast.error(e.response?.data?.message || '登录失败，请检查用户名和密码');
+    const msg = e.response?.data?.error?.message || e.response?.data?.message || '登录失败，请检查用户名和密码';
+    error.value = msg;
+    toast.error(msg);
   } finally {
     loading.value = false;
   }
@@ -470,7 +472,7 @@ async function handleRegister() {
     toast.success('注册成功，已自动登录');
     setTimeout(() => router.push('/console'), 300);
   } catch (e: any) {
-    const msg = e.response?.data?.message || '注册失败，请稍后再试';
+    const msg = e.response?.data?.error?.message || e.response?.data?.message || '注册失败，请稍后再试';
     error.value = msg;
     toast.error(msg);
   } finally {
@@ -533,7 +535,7 @@ async function handleForgotPassword() {
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     exitForgotMode();
   } catch (e: any) {
-    const msg = e.response?.data?.message || '密码重置失败';
+    const msg = e.response?.data?.error?.message || e.response?.data?.message || '密码重置失败';
     error.value = msg;
     toast.error(msg);
   } finally {

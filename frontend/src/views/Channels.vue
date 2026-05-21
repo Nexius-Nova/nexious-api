@@ -19,16 +19,17 @@
       <p>{{ channelsError }}</p>
       <button class="btn-ghost" @click="fetchChannels">重试</button>
     </div>
-    <!-- Batch Toolbar -->
-    <div v-if="selectedIds.size > 0" class="batch-toolbar glass-panel">
-      <span class="batch-count">已选择 {{ selectedIds.size }} 项</span>
-      <div class="batch-actions">
-        <button class="btn-ghost btn-sm" @click="batchEnable">批量启用</button>
-        <button class="btn-ghost btn-sm" @click="batchDisable">批量禁用</button>
-        <button class="btn-ghost btn-sm danger" @click="batchDelete">批量删除</button>
+    <template v-else>
+      <!-- Batch Toolbar -->
+      <div v-if="selectedIds.size > 0" class="batch-toolbar glass-panel">
+        <span class="batch-count">已选择 {{ selectedIds.size }} 项</span>
+        <div class="batch-actions">
+          <button class="btn-ghost btn-sm" @click="batchEnable">批量启用</button>
+          <button class="btn-ghost btn-sm" @click="batchDisable">批量禁用</button>
+          <button class="btn-ghost btn-sm danger" @click="batchDelete">批量删除</button>
+        </div>
       </div>
-    </div>
-    <DataTable v-else :columns="columns" :data="channels" empty-text="暂无渠道数据">
+      <DataTable :columns="columns" :data="channels" empty-text="暂无渠道数据">
       <template #cell-_select="{ row }">
         <input
           type="checkbox"
@@ -117,7 +118,8 @@
           </span>
         </div>
       </template>
-    </DataTable>
+      </DataTable>
+    </template>
 
     <Modal :visible="dialogVisible" :title="form.id ? '编辑渠道' : '添加渠道'" width="560px" @close="dialogVisible = false">
       <div class="form-row">

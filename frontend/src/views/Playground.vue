@@ -665,9 +665,7 @@ const doSend = async (text: string) => {
   };
 
   if (streamEnabled.value) {
-    // Remove stream flag — the /chat/stream endpoint implies streaming
-    const { stream, ...streamPayload } = requestPayload;
-    await doStreamSend(streamPayload);
+    await doStreamSend(requestPayload);
   } else {
     await doRegularSend(requestPayload);
   }
@@ -1390,15 +1388,25 @@ const renderContent = (text: string): string => {
 }
 
 .preset-select {
-  font-size: 0.65rem;
-  padding: 1px 4px;
-  border-radius: 4px;
+  min-width: 104px;
+  max-width: 128px;
+  height: 28px;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0 8px;
+  border-radius: 6px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-input);
   color: var(--text-muted);
   cursor: pointer;
-  max-width: 90px;
   text-overflow: ellipsis;
+  outline: none;
+}
+
+.preset-select:hover,
+.preset-select:focus {
+  border-color: var(--border-accent);
+  color: var(--text-secondary);
 }
 
 /* Model Selector */

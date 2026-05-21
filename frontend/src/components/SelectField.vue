@@ -1,6 +1,7 @@
 <template>
   <div class="custom-select" ref="wrapperRef">
     <div
+      ref="triggerRef"
       class="select-trigger"
       :class="{ focused, open: isOpen }"
       @click="toggle"
@@ -10,40 +11,43 @@
         <polyline points="6 9 12 15 18 9"></polyline>
       </svg>
     </div>
-    <Transition name="drop">
-      <div v-if="isOpen" class="select-dropdown glass-panel">
-        <input
-          v-if="allowCustom"
-          ref="searchInput"
-          v-model="searchText"
-          class="dropdown-search"
-          :placeholder="searchPlaceholder"
-          @keydown.enter.prevent="commitCustom"
-          @click.stop
-        />
-        <div
-          v-for="opt in filteredOptions"
-          :key="opt.value"
-          class="select-option"
-          :class="{ selected: modelValue === opt.value }"
-          @click="select(opt.value)"
-        >
-          <span>{{ opt.label }}</span>
-          <svg v-if="modelValue === opt.value" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
+    <Teleport to="body">
+      <Transition name="drop">
+        <div v-if="isOpen" class="select-dropdown glass-panel" :style="dropdownStyle">
+          <input
+            v-if="allowCustom"
+            ref="searchInput"
+            v-model="searchText"
+            class="dropdown-search"
+            :placeholder="searchPlaceholder"
+            @keydown.enter.prevent="commitCustom"
+            @click.stop
+          />
+          <div
+            v-for="opt in filteredOptions"
+            :key="opt.value"
+            class="select-option"
+            :class="{ selected: modelValue === opt.value }"
+            @click="select(opt.value)"
+          >
+            <span>{{ opt.label }}</span>
+            <svg v-if="modelValue === opt.value" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <div v-if="allowCustom && searchText && !filteredOptions.length" class="dropdown-custom-hint" @click="commitCustom">
+            使用 "{{ searchText }}"
+          </div>
+          <div v-if="!allowCustom && !options.length" class="dropdown-empty">无可用选项</div>
         </div>
-        <div v-if="allowCustom && searchText && !filteredOptions.length" class="dropdown-custom-hint" @click="commitCustom">
-          使用 "{{ searchText }}"
-        </div>
-        <div v-if="!allowCustom && !options.length" class="dropdown-empty">无可用选项</div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import type { StyleValue } from 'vue';
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -64,6 +68,7 @@ const emit = defineEmits<{
 const isOpen = ref(false);
 const focused = ref(false);
 const wrapperRef = ref<HTMLElement | null>(null);
+const triggerRef = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchText = ref('');
 
@@ -77,6 +82,17 @@ const filteredOptions = computed(() => {
   if (!searchText.value) return props.options;
   const q = searchText.value.toLowerCase();
   return props.options.filter(o => o.value.toLowerCase().includes(q) || o.label.toLowerCase().includes(q));
+});
+
+const dropdownStyle = computed<StyleValue>(() => {
+  const el = triggerRef.value;
+  if (!el) return {};
+  const rect = el.getBoundingClientRect();
+  return {
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+  };
 });
 
 const toggle = () => {
@@ -106,7 +122,9 @@ const commitCustom = () => {
 };
 
 const handleClickOutside = (e: MouseEvent) => {
-  if (wrapperRef.value && !wrapperRef.value.contains(e.target as Node)) {
+  const target = e.target as Node;
+  const clickedDropdown = (target as Element)?.closest?.('.select-dropdown');
+  if (wrapperRef.value && !wrapperRef.value.contains(target) && !clickedDropdown) {
     isOpen.value = false;
     focused.value = false;
     searchText.value = '';
@@ -172,11 +190,8 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 
 /* Dropdown panel */
 .select-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 50;
+  position: fixed;
+  z-index: 1000;
   max-height: 260px;
   overflow-y: auto;
   background: var(--bg-card);
