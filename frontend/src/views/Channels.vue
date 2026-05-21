@@ -563,14 +563,6 @@ const toggleSelect = (id: number) => {
   selectedIds.value = next;
 };
 
-const toggleSelectAll = () => {
-  if (selectedIds.value.size === channels.value.length) {
-    selectedIds.value = new Set();
-  } else {
-    selectedIds.value = new Set(channels.value.map(c => c.id!));
-  }
-};
-
 const batchEnable = async () => {
   try {
     await Promise.all(Array.from(selectedIds.value).map(id => api.patch(`/channels/${id}`, { status: true })));

@@ -387,6 +387,7 @@ const filterByModel = (model: string) => {
   onFilterChange();
 };
 
+const expandedId = ref<number | null>(null);
 const toggleExpand = (id: number) => {
   expandedId.value = expandedId.value === id ? null : id;
 };

@@ -44,7 +44,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import { useToast } from '../composables/useToast';
 
 const { toasts, dismiss, pauseTimer, resumeTimer, getProgressStyle } = useToast();

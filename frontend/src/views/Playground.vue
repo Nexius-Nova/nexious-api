@@ -405,7 +405,7 @@ import FormInput from '../components/FormInput.vue';
 import FormTextarea from '../components/FormTextarea.vue';
 import FormNumber from '../components/FormNumber.vue';
 import { useToast } from '../composables/useToast';
-import LoadingSkeleton from '../components/LoadingSkeleton.vue';
+
 
 const toast = useToast();
 
@@ -502,7 +502,7 @@ const isPageLoading = ref(true);
 const messagesContainer = ref<HTMLElement | null>(null);
 const chatInputEl = ref<HTMLTextAreaElement | null>(null);
 let abortGenerating = false;
-let saveErrorDebounce: ReturnType<typeof setTimeout> | null = null;
+
 
 // ── Scroll-to-bottom ──
 const showScrollButton = ref(false);

@@ -320,6 +320,40 @@ const doDeleteToken = async () => {
   }
 };
 
+const toggleSelect = (id: number) => {
+  const next = new Set(selectedIds.value);
+  if (next.has(id)) next.delete(id); else next.add(id);
+  selectedIds.value = next;
+};
+
+const batchEnable = async () => {
+  try {
+    await Promise.all(Array.from(selectedIds.value).map(id => api.patch(`/tokens/${id}`, { status: true })));
+    toast.success(`已启用 ${selectedIds.value.size} 个令牌`);
+    selectedIds.value = new Set();
+    fetchTokens();
+  } catch { toast.error('批量启用失败'); }
+};
+
+const batchDisable = async () => {
+  try {
+    await Promise.all(Array.from(selectedIds.value).map(id => api.patch(`/tokens/${id}`, { status: false })));
+    toast.success(`已禁用 ${selectedIds.value.size} 个令牌`);
+    selectedIds.value = new Set();
+    fetchTokens();
+  } catch { toast.error('批量禁用失败'); }
+};
+
+const batchDelete = async () => {
+  if (!confirm(`确定删除 ${selectedIds.value.size} 个令牌？此操作不可逆。`)) return;
+  try {
+    await Promise.all(Array.from(selectedIds.value).map(id => api.delete(`/tokens/${id}`)));
+    toast.success(`已删除 ${selectedIds.value.size} 个令牌`);
+    selectedIds.value = new Set();
+    fetchTokens();
+  } catch { toast.error('批量删除失败'); }
+};
+
 const copyKey = async (key: string) => {
   try {
     if (navigator.clipboard) {

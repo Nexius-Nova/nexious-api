@@ -134,7 +134,7 @@ interface Profile {
   email: string;
   role: string;
   status: boolean;
-  createdAt: string;
+  createdAt?: string;
 }
 
 const profile = ref<Profile | null>(null);
