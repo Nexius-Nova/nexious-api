@@ -100,6 +100,7 @@
         </div>
         <div class="card-body">
           <div class="profile-form">
+            <FormInput v-model="passwordForm.currentPassword" label="当前密码" type="password" placeholder="请输入当前密码" />
             <FormInput v-model="passwordForm.password" label="新密码" type="password" placeholder="至少 6 位字符" />
             <FormInput v-model="passwordForm.confirm" label="确认新密码" type="password" placeholder="再次输入新密码" />
             <div v-if="passwordError" class="form-error-msg">{{ passwordError }}</div>
@@ -118,7 +119,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
-import api from '../api';
+import { usersApi } from '../api/users';
+import { authApi } from '../api/auth';
 import { useAuthStore } from '../store/auth';
 import { useToast } from '../composables/useToast';
 import FormInput from '../components/FormInput.vue';
@@ -149,7 +151,7 @@ const emailSaving = ref(false);
 const countdown = ref(0);
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
-const passwordForm = reactive({ password: '', confirm: '' });
+const passwordForm = reactive({ currentPassword: '', password: '', confirm: '' });
 const passwordError = ref('');
 const changingPwd = ref(false);
 
@@ -170,7 +172,7 @@ function formatDate(dateStr?: string) {
 
 async function fetchProfile() {
   try {
-    const res = await api.get('/users/me');
+    const res = await usersApi.me();
     profile.value = res.data;
     form.username = res.data.username;
   } catch {
@@ -186,7 +188,7 @@ async function saveProfile() {
   }
   saving.value = true;
   try {
-    const res = await api.patch('/users/me', { username: form.username });
+    const res = await usersApi.updateMe({ username: form.username });
     profile.value = res.data;
     authStore.user = { id: res.data.id, username: res.data.username, email: res.data.email, role: res.data.role };
     toast.success('信息已更新');
@@ -199,6 +201,10 @@ async function saveProfile() {
 
 async function changePassword() {
   passwordError.value = '';
+  if (!passwordForm.currentPassword) {
+    passwordError.value = '请输入当前密码';
+    return;
+  }
   if (!passwordForm.password || passwordForm.password.length < 6) {
     passwordError.value = '密码长度不能少于 6 位';
     return;
@@ -209,8 +215,9 @@ async function changePassword() {
   }
   changingPwd.value = true;
   try {
-    await api.patch('/users/me', { password: passwordForm.password });
+    await usersApi.updateMe({ currentPassword: passwordForm.currentPassword, password: passwordForm.password });
     toast.success('密码已修改');
+    passwordForm.currentPassword = '';
     passwordForm.password = '';
     passwordForm.confirm = '';
   } catch (e: any) {
@@ -244,7 +251,7 @@ async function sendEmailCode() {
   }
   emailSending.value = true;
   try {
-    await api.post('/auth/send-verify-code', { email: emailForm.newEmail, purpose: 'change-email' });
+    await authApi.sendVerifyCode(emailForm.newEmail, 'change-email');
     toast.success('验证码已发送');
     startCountdown();
   } catch (e: any) {
@@ -264,7 +271,7 @@ async function confirmChangeEmail() {
   }
   emailSaving.value = true;
   try {
-    const res = await api.patch('/users/me/email', {
+    const res = await usersApi.updateEmail({
       email: emailForm.newEmail,
       code: emailForm.code,
     });

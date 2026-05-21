@@ -76,3 +76,51 @@ export interface BalanceSnapshot {
   currency: string;
   fetchedAt: string;
 }
+
+export interface Conversation {
+  id: number;
+  title: string;
+  messages: string | any[];
+  model: string;
+  systemPrompt?: string | null;
+  temperature?: number | null;
+  maxTokens?: number | null;
+  topP?: number | null;
+  streamEnabled?: boolean | null;
+  debugInfo?: string | null;
+  imageUrl?: string | null;
+  userId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+  status: boolean;
+  createdAt?: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface ApiError {
+  message: string;
+  statusCode: number;
+  type?: string;
+}
+
+/** Shared model type options used by Models and Channels views */
+export const MODEL_TYPE_OPTIONS = [
+  { value: 'text', label: '文本' },
+  { value: 'image', label: '图片' },
+  { value: 'video', label: '视频' },
+  { value: 'audio', label: '音频' },
+  { value: 'embedding', label: '嵌入' },
+] as const;

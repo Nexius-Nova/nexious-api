@@ -57,25 +57,25 @@ export class BillingService {
       balanceApiConfig: channel.balanceApiConfig,
     });
 
-    // Save snapshot
-    await this.prisma.channelBalanceSnapshot.create({
-      data: {
-        channelId,
-        balance: info.balance,
-        currency: info.currency,
-        rawData: info.rawData ? JSON.stringify(info.rawData) : null,
-      },
-    });
-
-    // Update channel lastBalance
-    await this.prisma.channel.update({
-      where: { id: channelId },
-      data: {
-        lastBalance: info.balance,
-        lastBalanceAt: new Date(),
-        currency: info.currency,
-      },
-    });
+    // Save snapshot and update channel in a transaction for atomicity
+    const [snapshot] = await this.prisma.$transaction([
+      this.prisma.channelBalanceSnapshot.create({
+        data: {
+          channelId,
+          balance: info.balance,
+          currency: info.currency,
+          rawData: info.rawData ? JSON.stringify(info.rawData) : null,
+        },
+      }),
+      this.prisma.channel.update({
+        where: { id: channelId },
+        data: {
+          lastBalance: info.balance,
+          lastBalanceAt: new Date(),
+          currency: info.currency,
+        },
+      }),
+    ]);
 
     this.logger.log(`Balance refreshed for channel ${channelId}: ${info.balance} ${info.currency}`);
 
@@ -110,25 +110,29 @@ export class BillingService {
       where: { balanceEnabled: true, status: true },
     });
 
+    const results = await Promise.allSettled(
+      channels.map((channel) => this.refreshBalance(channel.id)),
+    );
+
     let success = 0;
     let failed = 0;
     const errors: Array<{ channelId: number; error: string }> = [];
 
-    for (const channel of channels) {
-      try {
-        await this.refreshBalance(channel.id);
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
         success++;
-      } catch (err: any) {
+      } else {
         failed++;
+        const err = result.reason;
         errors.push({
-          channelId: channel.id,
+          channelId: channels[index].id,
           error: err.message || 'Unknown error',
         });
         this.logger.error(
-          `Failed to refresh balance for channel ${channel.id}: ${err.message}`,
+          `Failed to refresh balance for channel ${channels[index].id}: ${err.message}`,
         );
       }
-    }
+    });
 
     return { success, failed, errors };
   }

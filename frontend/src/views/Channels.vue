@@ -14,7 +14,29 @@
       </button>
     </div>
 
-    <DataTable :columns="columns" :data="channels" empty-text="暂无渠道数据">
+    <LoadingSkeleton v-if="channelsLoading" type="table" :rows="5" :cols="8" />
+    <div v-else-if="channelsError" class="error-state">
+      <p>{{ channelsError }}</p>
+      <button class="btn-ghost" @click="fetchChannels">重试</button>
+    </div>
+    <!-- Batch Toolbar -->
+    <div v-if="selectedIds.size > 0" class="batch-toolbar glass-panel">
+      <span class="batch-count">已选择 {{ selectedIds.size }} 项</span>
+      <div class="batch-actions">
+        <button class="btn-ghost btn-sm" @click="batchEnable">批量启用</button>
+        <button class="btn-ghost btn-sm" @click="batchDisable">批量禁用</button>
+        <button class="btn-ghost btn-sm danger" @click="batchDelete">批量删除</button>
+      </div>
+    </div>
+    <DataTable v-else :columns="columns" :data="channels" empty-text="暂无渠道数据">
+      <template #cell-_select="{ row }">
+        <input
+          type="checkbox"
+          :checked="selectedIds.has((row as any).id!)"
+          @change="toggleSelect((row as any).id!)"
+          class="row-checkbox"
+        />
+      </template>
       <template #cell-type="{ row }">
         <div class="provider-info">
           <div class="provider-icon">
@@ -79,8 +101,8 @@
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
             </svg>
           </button>
-          <span v-if="testResults[(row as any).id!]" :class="['test-result', testResults[(row as any).id!].success ? 'success' : 'error']">
-            {{ testResults[(row as any).id!].success ? testResults[(row as any).id!].latency + 'ms' : '!' }}
+          <span v-if="testResults[(row as any).id!]" :class="['test-result', testResults[(row as any).id!].success ? 'success' : 'error']" :title="((testResults[(row as any).id!] as any).error || (testResults[(row as any).id!] as any).message) || ''">
+            {{ testResults[(row as any).id!].success ? testResults[(row as any).id!].latency + 'ms' : ((testResults[(row as any).id!] as any).error || (testResults[(row as any).id!] as any).message || '连接失败') }}
           </span>
           <template v-if="canEdit(row as any)">
             <button class="icon-btn-sm" @click="openDialog(row as any)">
@@ -97,7 +119,6 @@
       </template>
     </DataTable>
 
-    <!-- Custom Modal -->
     <Modal :visible="dialogVisible" :title="form.id ? '编辑渠道' : '添加渠道'" width="560px" @close="dialogVisible = false">
       <div class="form-row">
         <FormInput v-model="form.name" label="渠道名称" placeholder="例如：OpenAI 主渠道" />
@@ -107,23 +128,16 @@
         </div>
       </div>
       <FormInput v-model="form.baseUrl" label="基础 URL" placeholder="https://api.openai.com" />
-      <FormInput v-model="form.apiKey" label="API 密钥" type="password" :placeholder="form.id ? '留空则不修改密钥' : 'sk-...'" />
-      <!-- Dynamic model list -->
+      <div class="api-key-wrapper">
+        <FormInput v-model="form.apiKey" label="API 密钥" type="password" :placeholder="form.id ? '留空则不修改密钥' : 'sk-...'" />
+        <span v-if="form.id && !form.apiKey && apiKeyUnchanged" class="api-key-unchanged-hint">密钥未修改</span>
+      </div>
       <div class="form-group">
         <label class="form-label">支持的模型</label>
         <div class="models-list">
           <div v-for="(entry, index) in modelsList" :key="index" class="model-entry">
-            <input
-              v-model="entry.name"
-              class="form-input model-name-input"
-              placeholder="模型名称，如 gpt-4"
-            />
-            <SelectField
-              v-model="entry.type"
-              :options="modelTypeOptions"
-              placeholder="text"
-              class="model-type-select"
-            />
+            <input v-model="entry.name" class="form-input model-name-input" placeholder="模型名称，如 gpt-4" />
+            <SelectField v-model="entry.type" :options="modelTypeOptions" placeholder="text" class="model-type-select" />
             <button class="icon-btn-sm model-remove-btn" @click="removeModelEntry(index)" type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -151,8 +165,6 @@
         <label class="form-label">可见性</label>
         <SelectField v-model="formVisibility" :options="visibilityOptions" placeholder="请选择" />
       </div>
-
-      <!-- Billing Config Section -->
       <div class="billing-section">
         <h4 class="section-title">余额设置</h4>
         <div class="form-group">
@@ -170,42 +182,37 @@
           </div>
         </div>
         <template v-if="formBalanceEnabled">
-          <!-- Generic adapter: structured fields -->
           <template v-if="balanceApiTypeModel === 'generic'">
-          <div class="form-group">
-            <label class="form-label">余额接口 URL</label>
-            <FormInput v-model="genericUrl" placeholder="https://api.moonshot.cn/v1/users/me/balance" />
-            <p class="form-hint">完整 URL（https://...）或相对路径（如 /v1/users/me/balance），相对路径会拼接到基础 URL 后</p>
+            <div class="form-group">
+              <label class="form-label">余额接口 URL</label>
+              <FormInput v-model="genericUrl" placeholder="https://api.moonshot.cn/v1/users/me/balance" />
+              <p class="form-hint">完整 URL（https://...）或相对路径（如 /v1/users/me/balance），相对路径会拼接到基础 URL 后</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">余额字段路径</label>
+              <FormInput v-model="genericResponsePath" placeholder="data.available_balance" />
+              <p class="form-hint">响应 JSON 中余额值的路径，用 . 分隔嵌套。如 data.balance、available_balance</p>
+            </div>
+          </template>
+          <div v-else class="form-group">
+            <label class="form-label">余额接口配置 (JSON)</label>
+            <textarea v-model="balanceApiConfigModel" class="form-textarea" rows="2" placeholder='{"balanceUrl":"https://custom/api/balance"}'></textarea>
           </div>
-          <div class="form-group">
-            <label class="form-label">余额字段路径</label>
-            <FormInput v-model="genericResponsePath" placeholder="data.available_balance" />
-            <p class="form-hint">响应 JSON 中余额值的路径，用 . 分隔嵌套。如 data.balance、available_balance</p>
-          </div>
-        </template>
-        <!-- Other adapters: JSON config for advanced overrides -->
-        <div v-else class="form-group">
-          <label class="form-label">余额接口配置 (JSON)</label>
-          <textarea
-            v-model="balanceApiConfigModel"
-            class="form-textarea"
-            rows="2"
-            placeholder='{"balanceUrl":"https://custom/api/balance"}'
-          ></textarea>
-        </div>
         </template>
       </div>
       <template #footer>
         <button class="btn-ghost" @click="dialogVisible = false">取消</button>
+        <button class="btn-secondary" @click="testBeforeSave" :disabled="testingBeforeSave">
+          {{ testingBeforeSave ? '测试中...' : '测试并保存' }}
+        </button>
         <button class="btn-primary" @click="saveChannel">保存渠道</button>
       </template>
     </Modal>
 
-    <!-- Confirm Delete Dialog -->
     <ConfirmDialog
       v-model:visible="confirmVisible"
       title="删除渠道"
-      message="确定要删除该渠道吗？此操作不可恢复。"
+      message="确定要删除该渠道吗？此操作不可恢复。删除此渠道将影响所有使用该渠道中模型的 API Token 和会话。删除后，关联该渠道的令牌将无法使用此渠道模型，相关会话可能受到影响。"
       confirm-text="删除"
       type="danger"
       @confirm="doDeleteChannel"
@@ -214,9 +221,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import api from '../api';
 import type { Channel } from '../types';
+import { MODEL_TYPE_OPTIONS } from '../types';
+import LoadingSkeleton from '../components/LoadingSkeleton.vue';
 import DataTable from '../components/DataTable.vue';
 import type { ColumnDef } from '../components/DataTable.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
@@ -267,19 +276,19 @@ const currencyOptions = [
   { value: 'KRW', label: 'KRW - 韩元' },
 ];
 
-const modelTypeOptions = [
-  { value: 'text', label: 'text' },
-  { value: 'image', label: 'image' },
-  { value: 'video', label: 'video' },
-  { value: 'audio', label: 'audio' },
-];
+const modelTypeOptions = MODEL_TYPE_OPTIONS.map((o) => ({ ...o }));
 
 const channels = ref<Channel[]>([]);
+const channelsLoading = ref(true);
+const channelsError = ref('');
 const dialogVisible = ref(false);
 const confirmVisible = ref(false);
 const deletingId = ref<number | null>(null);
 const testingSet = ref<Set<number>>(new Set());
-const testResults = ref<Record<number, { success: boolean; latency: number; error?: string }>>({});
+const testResults = ref<Record<number, { success: boolean; latency: number; error?: string; message?: string }>>({});
+const testingBeforeSave = ref(false);
+const apiKeyUnchanged = ref(false);
+const selectedIds = ref<Set<number>>(new Set());
 const form = ref<Channel>({
   id: null,
   name: '',
@@ -299,11 +308,9 @@ const form = ref<Channel>({
 const toast = useToast();
 const authStore = useAuthStore();
 
-// Generic adapter structured config fields
 const genericUrl = ref('');
 const genericResponsePath = ref('');
 
-// Dynamic model list for the tag editor UI
 interface ModelEntry { name: string; type: string }
 const modelsList = ref<ModelEntry[]>([]);
 
@@ -328,6 +335,7 @@ const syncFormFromModelsList = () => {
 };
 
 const columns: ColumnDef[] = [
+  { key: '_select', label: '', width: '40px', sortable: false },
   { key: 'type', label: '提供商' },
   { key: 'status', label: '状态' },
   { key: 'visibility', label: '可见性' },
@@ -341,37 +349,34 @@ const columns: ColumnDef[] = [
 const maxWeight = computed(() => Math.max(...channels.value.map((c) => c.weight), 1));
 const formVisibility = computed({
   get: () => form.value.visibility ?? 'private',
-  set: (value: string) => {
-    form.value.visibility = value;
-  },
+  set: (value: string) => { form.value.visibility = value; },
 });
 
 const balanceApiTypeModel = computed({
   get: () => form.value.balanceApiType ?? 'openai-compatible',
   set: (value: string) => {
     form.value.balanceApiType = value;
+    if (value !== 'generic') {
+      genericUrl.value = '';
+      genericResponsePath.value = '';
+      form.value.balanceApiConfig = '';
+    }
   },
 });
 
 const balanceApiConfigModel = computed({
   get: () => form.value.balanceApiConfig ?? '',
-  set: (value: string) => {
-    form.value.balanceApiConfig = value;
-  },
+  set: (value: string) => { form.value.balanceApiConfig = value; },
 });
 
 const formBalanceEnabled = computed({
   get: () => form.value.balanceEnabled ?? false,
-  set: (value: boolean) => {
-    form.value.balanceEnabled = value;
-  },
+  set: (value: boolean) => { form.value.balanceEnabled = value; },
 });
 
 const formCurrency = computed({
   get: () => form.value.currency ?? 'USD',
-  set: (value: string) => {
-    form.value.currency = value;
-  },
+  set: (value: string) => { form.value.currency = value; },
 });
 
 const canEdit = (row: Channel) => {
@@ -379,16 +384,24 @@ const canEdit = (row: Channel) => {
 };
 
 const fetchChannels = async () => {
-  const res = await api.get('/channels');
-  channels.value = res.data;
+  channelsLoading.value = true;
+  channelsError.value = '';
+  try {
+    const res = await api.get('/channels');
+    channels.value = res.data;
+  } catch (e: any) {
+    channelsError.value = e.response?.data?.message || '获取渠道列表失败';
+  } finally {
+    channelsLoading.value = false;
+  }
 };
 
 const openDialog = (row: Channel | null = null) => {
+  apiKeyUnchanged.value = false;
   if (row) {
     form.value = { ...row };
-    // Clear apiKey — backend will keep the existing key if a new one is not provided
     form.value.apiKey = '';
-    // Parse existing models/modelTypes into the tag list
+    apiKeyUnchanged.value = true;
     const names = (row.models || '').split(',').filter(Boolean);
     let types: Record<string, string> = {};
     try { types = JSON.parse(row.modelTypes || '{}'); } catch {}
@@ -396,27 +409,16 @@ const openDialog = (row: Channel | null = null) => {
       name: n.trim(),
       type: types[n.trim()] || 'text',
     }));
-    // Parse generic config
     let cfg: any = {};
     try { cfg = JSON.parse(row.balanceApiConfig || '{}'); } catch {}
     genericUrl.value = cfg.balanceUrl || cfg.path || '';
     genericResponsePath.value = cfg.responsePath || '';
   } else {
     form.value = {
-      id: null,
-      name: '',
-      type: 'openai',
-      baseUrl: '',
-      apiKey: '',
-      models: '',
-      modelTypes: '',
-      status: true,
-      weight: 1,
-      visibility: 'private',
-      currency: 'USD',
-      balanceEnabled: false,
-      balanceApiType: 'openai-compatible',
-      balanceApiConfig: '',
+      id: null, name: '', type: 'openai', baseUrl: '', apiKey: '',
+      models: '', modelTypes: '', status: true, weight: 1,
+      visibility: 'private', currency: 'USD', balanceEnabled: false,
+      balanceApiType: 'openai-compatible', balanceApiConfig: '',
     };
     modelsList.value = [];
     genericUrl.value = '';
@@ -425,7 +427,12 @@ const openDialog = (row: Channel | null = null) => {
   dialogVisible.value = true;
 };
 
-// Whitelist: only fields allowed by CreateChannelDto / UpdateChannelDto
+watch(() => form.value.apiKey, (val) => {
+  if (apiKeyUnchanged.value && val) {
+    apiKeyUnchanged.value = false;
+  }
+});
+
 const CHANNEL_WHITELIST = [
   'name', 'type', 'baseUrl', 'apiKey', 'models',
   'modelTypes', 'status', 'weight', 'visibility',
@@ -437,7 +444,6 @@ const cleanPayload = (raw: Record<string, any>, isUpdate: boolean) => {
   for (const k of CHANNEL_WHITELIST) {
     if (k in raw) {
       const v = raw[k];
-      // Skip empty apiKey on update (keep existing)
       if (isUpdate && k === 'apiKey' && !v) continue;
       out[k] = v;
     }
@@ -445,23 +451,25 @@ const cleanPayload = (raw: Record<string, any>, isUpdate: boolean) => {
   return out;
 };
 
+const serializeGenericConfig = () => {
+  if (balanceApiTypeModel.value === 'generic') {
+    const cfg: Record<string, any> = {};
+    if (genericUrl.value) {
+      if (/^https?:\/\//.test(genericUrl.value)) {
+        cfg.balanceUrl = genericUrl.value;
+      } else {
+        cfg.path = genericUrl.value;
+      }
+    }
+    if (genericResponsePath.value) cfg.responsePath = genericResponsePath.value;
+    form.value.balanceApiConfig = Object.keys(cfg).length ? JSON.stringify(cfg) : '';
+  }
+};
+
 const saveChannel = async () => {
   try {
-    // Sync the tag list back to form's comma-string and JSON fields
     syncFormFromModelsList();
-    // Serialize generic adapter fields
-    if (balanceApiTypeModel.value === 'generic') {
-      const cfg: Record<string, any> = {};
-      if (genericUrl.value) {
-        if (/^https?:\/\//.test(genericUrl.value)) {
-          cfg.balanceUrl = genericUrl.value;
-        } else {
-          cfg.path = genericUrl.value;
-        }
-      }
-      if (genericResponsePath.value) cfg.responsePath = genericResponsePath.value;
-      form.value.balanceApiConfig = Object.keys(cfg).length ? JSON.stringify(cfg) : '';
-    }
+    serializeGenericConfig();
     if (form.value.id) {
       await api.patch(`/channels/${form.value.id}`, cleanPayload(form.value, true));
     } else {
@@ -476,6 +484,35 @@ const saveChannel = async () => {
     } else {
       toast.error('保存失败');
     }
+  }
+};
+
+const testBeforeSave = async () => {
+  if (!form.value.id) {
+    await saveChannel();
+    return;
+  }
+  testingBeforeSave.value = true;
+  try {
+    syncFormFromModelsList();
+    serializeGenericConfig();
+    await api.patch(`/channels/${form.value.id}`, cleanPayload(form.value, true));
+    const res = await api.post(`/channels/${form.value.id}/test`);
+    if (res.data.success) {
+      toast.success(`测试通过 (${res.data.latency}ms)，渠道已保存`);
+    } else {
+      toast.error(`保存成功但测试失败: ${res.data.error}`);
+    }
+    dialogVisible.value = false;
+    fetchChannels();
+  } catch (error: any) {
+    if (error?.response?.status === 403) {
+      toast.error('仅渠道创建者可修改');
+    } else {
+      toast.error('保存失败');
+    }
+  } finally {
+    testingBeforeSave.value = false;
   }
 };
 
@@ -520,6 +557,48 @@ const testChannel = async (id: number) => {
   }
 };
 
+const toggleSelect = (id: number) => {
+  const next = new Set(selectedIds.value);
+  if (next.has(id)) next.delete(id); else next.add(id);
+  selectedIds.value = next;
+};
+
+const toggleSelectAll = () => {
+  if (selectedIds.value.size === channels.value.length) {
+    selectedIds.value = new Set();
+  } else {
+    selectedIds.value = new Set(channels.value.map(c => c.id!));
+  }
+};
+
+const batchEnable = async () => {
+  try {
+    await Promise.all(Array.from(selectedIds.value).map(id => api.patch(`/channels/${id}`, { status: true })));
+    toast.success(`已启用 ${selectedIds.value.size} 个渠道`);
+    selectedIds.value = new Set();
+    fetchChannels();
+  } catch { toast.error('批量启用失败'); }
+};
+
+const batchDisable = async () => {
+  try {
+    await Promise.all(Array.from(selectedIds.value).map(id => api.patch(`/channels/${id}`, { status: false })));
+    toast.success(`已禁用 ${selectedIds.value.size} 个渠道`);
+    selectedIds.value = new Set();
+    fetchChannels();
+  } catch { toast.error('批量禁用失败'); }
+};
+
+const batchDelete = async () => {
+  if (!confirm(`确定要删除 ${selectedIds.value.size} 个渠道吗？此操作不可恢复。`)) return;
+  try {
+    await Promise.all(Array.from(selectedIds.value).map(id => api.delete(`/channels/${id}`)));
+    toast.success(`已删除 ${selectedIds.value.size} 个渠道`);
+    selectedIds.value = new Set();
+    fetchChannels();
+  } catch { toast.error('批量删除失败'); }
+};
+
 function formatBalance(value: number | string | null | undefined) {
   const n = Number(value);
   if (!value || isNaN(n) || n === 0) return '$0.00';
@@ -551,6 +630,48 @@ onMounted(fetchChannels);
 
 .table-card {
   overflow: hidden;
+}
+
+/* Batch Toolbar */
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--radius);
+}
+
+.batch-count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-blue);
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 0.76rem;
+}
+
+.btn-sm.danger {
+  color: var(--accent-red);
+}
+
+.btn-sm.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.row-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-blue);
 }
 
 .provider-info {
@@ -622,7 +743,6 @@ onMounted(fetchChannels);
   border-radius: 2px;
 }
 
-/* Weight Bar */
 .weight-cell {
   display: flex;
   align-items: center;
@@ -653,7 +773,6 @@ onMounted(fetchChannels);
   text-align: right;
 }
 
-/* Test Button */
 .icon-btn-sm.testing {
   color: var(--accent-blue);
   animation: pulse 1s ease-in-out infinite;
@@ -669,6 +788,9 @@ onMounted(fetchChannels);
   padding: 2px 6px;
   border-radius: 4px;
   white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .test-result.success {
@@ -716,7 +838,6 @@ onMounted(fetchChannels);
   color: var(--accent-red);
 }
 
-/* Modal Styles */
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -743,7 +864,21 @@ onMounted(fetchChannels);
   pointer-events: none;
 }
 
-/* Visibility tag */
+.api-key-wrapper {
+  position: relative;
+}
+
+.api-key-unchanged-hint {
+  display: inline-block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-input);
+  margin-left: 8px;
+  font-style: italic;
+}
+
 .visibility-tag {
   display: inline-block;
   font-size: 0.73rem;
@@ -773,7 +908,6 @@ onMounted(fetchChannels);
   white-space: nowrap;
 }
 
-/* Balance cell */
 .balance-cell {
   font-family: var(--font-mono);
   font-size: 0.8rem;
@@ -795,7 +929,17 @@ onMounted(fetchChannels);
   font-size: 0.75rem;
 }
 
-/* Billing section */
+.error-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--accent-red);
+}
+
+.error-state p {
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
 .billing-section {
   margin-top: 16px;
   padding-top: 16px;
@@ -826,7 +970,6 @@ onMounted(fetchChannels);
   border-color: var(--accent-blue);
 }
 
-/* Dynamic model list */
 .models-list {
   display: flex;
   flex-direction: column;

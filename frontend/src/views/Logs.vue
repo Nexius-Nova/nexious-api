@@ -6,6 +6,10 @@
         <p>网关处理的所有 API 请求的实时流。</p>
       </div>
       <div class="header-actions">
+        <button class="btn-export" @click="exportCSV">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          导出 CSV
+        </button>
         <button class="btn-ghost" @click="fetchLogs">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px">
             <path d="M23 4v6h-6"></path>
@@ -119,7 +123,7 @@
       <template #cell-model="{ row }">
         <div class="model-cell">
           <ModelIcon :name="row.model" :size="18" />
-          <span class="tag model-tag">{{ row.model }}</span>
+          <span class="tag model-tag clickable" role="button" tabindex="0" @click="filterByModel(row.model)" @keydown.enter="filterByModel(row.model)">{{ row.model }}</span>
         </div>
       </template>
       <template #cell-totalTokens="{ row }">
@@ -363,14 +367,50 @@ const fetchChannels = async () => {
   try {
     const res = await api.get('/channels');
     channels.value = res.data;
-  } catch {}
+  } catch (e: any) {
+    /* keep defaults - channels list empty */
+  }
 };
 
 const fetchTokens = async () => {
   try {
     const res = await api.get('/tokens');
     tokens.value = res.data;
-  } catch {}
+  } catch (e: any) {
+    /* keep defaults - tokens list empty */
+  }
+};
+
+const filterByModel = (model: string) => {
+  modelFilter.value = model;
+  modelFilterInput.value = model;
+  onFilterChange();
+};
+
+const toggleExpand = (id: number) => {
+  expandedId.value = expandedId.value === id ? null : id;
+};
+
+const exportCSV = () => {
+  const headers = ['时间', '模型', 'Token ID', 'Prompt Tokens', 'Completion Tokens', '总Tokens', '费用', 'IP'];
+  const rows = logs.value.map(l => [
+    l.createdAt,
+    l.model,
+    l.tokenId,
+    l.promptTokens,
+    l.completionTokens,
+    l.totalTokens,
+    l.totalCost,
+    l.ip,
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'logs.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 };
 
 onMounted(() => {
@@ -509,6 +549,10 @@ onUnmounted(() => {
   color: var(--accent-blue);
   background: rgba(59, 130, 246, 0.1);
   border-color: rgba(59, 130, 246, 0.2);
+}
+
+.model-tag.clickable {
+  cursor: pointer;
 }
 
 .usage-stack {

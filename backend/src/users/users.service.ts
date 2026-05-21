@@ -56,7 +56,7 @@ export class UsersService {
 
   async updateMyEmail(userId: number, dto: { email: string; code: string }) {
     // Validate the verification code
-    this.authService.consumeEmailCode(dto.email, dto.code);
+    this.authService.consumeEmailCode(dto.email, dto.code, 'change-email');
 
     // Check if email is already taken by another user
     const dup = await this.prisma.user.findFirst({

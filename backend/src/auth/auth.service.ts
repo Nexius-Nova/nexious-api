@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  HttpException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -13,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 interface CodeEntry {
   code: string;
   expiresAt: number;
+  purpose: 'register' | 'reset' | 'change-email';
 }
 
 @Injectable()
@@ -28,11 +30,60 @@ export class AuthService {
     }
   }, 60_000);
 
+  // Login brute-force protection
+  private loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+
+  private checkLoginRateLimit(key: string): void {
+    const attempt = this.loginAttempts.get(key);
+    const now = Date.now();
+    if (attempt && attempt.lockedUntil > now) {
+      const remaining = Math.ceil((attempt.lockedUntil - now) / 1000 / 60);
+      throw new HttpException(
+        `Too many login attempts. Try again in ${remaining} minutes.`,
+        429,
+      );
+    }
+    // Clean up old entries periodically
+    if (this.loginAttempts.size > 1000) {
+      for (const [k, v] of this.loginAttempts) {
+        if (v.lockedUntil < now) this.loginAttempts.delete(k);
+      }
+    }
+  }
+
+  private recordLoginFailure(key: string): void {
+    const attempt = this.loginAttempts.get(key) || { count: 0, lockedUntil: 0 };
+    attempt.count++;
+    if (attempt.count >= 5) {
+      attempt.lockedUntil = Date.now() + 15 * 60 * 1000; // 15-minute lockout
+    }
+    this.loginAttempts.set(key, attempt);
+  }
+
+  private clearLoginAttempts(key: string): void {
+    this.loginAttempts.delete(key);
+  }
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private emailService: EmailService,
   ) {}
+
+  private validatePasswordStrength(password: string): void {
+    if (password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters');
+    }
+    if (!/[A-Z]/.test(password)) {
+      throw new BadRequestException('Password must contain at least one uppercase letter');
+    }
+    if (!/[a-z]/.test(password)) {
+      throw new BadRequestException('Password must contain at least one lowercase letter');
+    }
+    if (!/[0-9]/.test(password)) {
+      throw new BadRequestException('Password must contain at least one digit');
+    }
+  }
 
   async register(dto: {
     username: string;
@@ -40,8 +91,11 @@ export class AuthService {
     password: string;
     code: string;
   }) {
+    // Validate password strength
+    this.validatePasswordStrength(dto.password);
+
     // Validate verification code
-    this.consumeEmailCode(dto.email, dto.code);
+    this.consumeEmailCode(dto.email, dto.code, 'register');
 
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ username: dto.username }, { email: dto.email }] },
@@ -97,6 +151,7 @@ export class AuthService {
     this.codeStore.set(email, {
       code,
       expiresAt: Date.now() + 5 * 60 * 1000,
+      purpose,
     });
 
     const sent = await this.emailService.sendVerificationCode(email, code);
@@ -108,7 +163,7 @@ export class AuthService {
   }
 
   /** Validate & consume a verification code. Throws if invalid/expired. */
-  consumeEmailCode(email: string, code: string): void {
+  consumeEmailCode(email: string, code: string, purpose: string): void {
     const entry = this.codeStore.get(email);
     if (!entry) {
       throw new BadRequestException('验证码已过期或未发送，请重新获取');
@@ -117,6 +172,9 @@ export class AuthService {
       this.codeStore.delete(email);
       throw new BadRequestException('验证码已过期，请重新获取');
     }
+    if (entry.purpose !== purpose) {
+      throw new BadRequestException('验证码用途不匹配');
+    }
     if (entry.code !== code) {
       throw new BadRequestException('验证码错误');
     }
@@ -124,10 +182,14 @@ export class AuthService {
   }
 
   async login(dto: { username: string; password: string }) {
+    const key = dto.username;
+    this.checkLoginRateLimit(key);
+
     const user = await this.prisma.user.findUnique({
       where: { username: dto.username },
     });
     if (!user) {
+      this.recordLoginFailure(key);
       throw new UnauthorizedException('Invalid username or password');
     }
     if (!user.status) {
@@ -136,8 +198,11 @@ export class AuthService {
 
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) {
+      this.recordLoginFailure(key);
       throw new UnauthorizedException('Invalid username or password');
     }
+
+    this.clearLoginAttempts(key);
 
     const payload = { sub: user.id, username: user.username, role: user.role };
     return {
@@ -152,8 +217,11 @@ export class AuthService {
   }
 
   async resetPassword(dto: { email: string; code: string; password: string }) {
+    // Validate password strength
+    this.validatePasswordStrength(dto.password);
+
     // Validate & consume the verification code
-    this.consumeEmailCode(dto.email, dto.code);
+    this.consumeEmailCode(dto.email, dto.code, 'reset');
 
     // Find user by email
     const user = await this.prisma.user.findUnique({
@@ -163,15 +231,18 @@ export class AuthService {
       throw new BadRequestException('该邮箱未注册');
     }
 
-    if (dto.password.length < 6) {
-      throw new BadRequestException('密码长度不能少于 6 位');
-    }
-
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     await this.prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
     });
+
+    // Send password change notification email (non-blocking)
+    try {
+      await this.emailService.sendPasswordChangedNotification(dto.email);
+    } catch (e) {
+      this.logger.warn(`Failed to send password change notification to ${dto.email}`);
+    }
 
     return { message: '密码重置成功，请返回登录' };
   }

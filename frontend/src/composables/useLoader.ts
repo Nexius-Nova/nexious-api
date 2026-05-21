@@ -1,8 +1,9 @@
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const loading = ref(false);
 // Number between 0–100 for the bar width
 const progress = ref(0);
+let activeRequests = 0;
 
 let trickleTimer: ReturnType<typeof setTimeout> | null = null;
 let finishTimer: ReturnType<typeof setTimeout> | null = null;
@@ -26,7 +27,10 @@ function trickle() {
 }
 
 export function useLoader() {
+  const isLoading = computed(() => loading.value);
+
   const start = () => {
+    activeRequests++;
     clearTimers();
     progress.value = 0;
     loading.value = true;
@@ -39,16 +43,21 @@ export function useLoader() {
   };
 
   const stop = () => {
-    clearTimers();
-    progress.value = 100;
-    finishTimer = setTimeout(() => {
-      loading.value = false;
-      progress.value = 0;
-    }, 400);
+    activeRequests--;
+    if (activeRequests <= 0) {
+      activeRequests = 0;
+      clearTimers();
+      progress.value = 100;
+      finishTimer = setTimeout(() => {
+        loading.value = false;
+        progress.value = 0;
+      }, 400);
+    }
   };
 
   return {
     loading,
+    isLoading,
     progress,
     start,
     stop,

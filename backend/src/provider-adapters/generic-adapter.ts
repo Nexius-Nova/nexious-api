@@ -57,16 +57,16 @@ export class GenericAdapter implements ProviderAdapter {
     const baseHeaders: Record<string, string> = {
       Authorization: `Bearer ${channel.apiKey}`,
     };
-    if (config.headers && typeof config.headers === 'object') {
-      Object.assign(baseHeaders, config.headers);
-    }
+    const configHeaders: Record<string, string> =
+      config.headers && typeof config.headers === 'object' ? { ...config.headers } : {};
+    const mergedHeaders = { ...configHeaders, ...baseHeaders };
 
     // Make the request
     let response: any;
     if (method === 'GET') {
-      response = await axios.get(url, { headers: baseHeaders, timeout: 10000 });
+      response = await axios.get(url, { headers: mergedHeaders, timeout: 10000 });
     } else if (method === 'POST') {
-      response = await axios.post(url, config.body || {}, { headers: baseHeaders, timeout: 10000 });
+      response = await axios.post(url, config.body || {}, { headers: mergedHeaders, timeout: 10000 });
     } else {
       throw new Error(`Unsupported HTTP method: ${method}`);
     }

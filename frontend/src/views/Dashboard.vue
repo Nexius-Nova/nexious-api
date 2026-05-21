@@ -1,5 +1,8 @@
 <template>
-  <section class="dashboard-shell animate-fade-in">
+  <div v-if="isLoading" class="dashboard-loading">
+    <LoadingSkeleton type="card" :rows="4" />
+  </div>
+  <section v-else class="dashboard-shell animate-fade-in">
     <header class="dashboard-header">
       <div>
         <h2>数据看板</h2>
@@ -19,11 +22,23 @@
             v-for="day in dayOptions"
             :key="day"
             type="button"
-            :class="['range-btn', { active: dailyDays === day }]"
+            :class="['range-btn', { active: dailyDays === day && !customRangeEnabled }]"
             @click="changeDailyRange(day)"
           >
             {{ day }} 天
           </button>
+          <button
+            type="button"
+            :class="['range-btn', { active: customRangeEnabled }]"
+            @click="toggleCustomRange"
+          >
+            自定义
+          </button>
+        </div>
+        <div v-if="customRangeEnabled" class="custom-range-inputs">
+          <input type="date" v-model="customStartDate" class="date-input" @change="fetchCustomRange" />
+          <span class="date-separator">至</span>
+          <input type="date" v-model="customEndDate" class="date-input" @change="fetchCustomRange" />
         </div>
       </div>
     </header>
@@ -112,7 +127,7 @@
             <h3>最近请求</h3>
             <p>最新 5 条调用记录</p>
           </div>
-          <router-link to="/console/logs" class="view-link">
+          <router-link :to="{ path: '/console/logs', query: { days: dailyDays } }" class="view-link">
             查看全部
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 18 15 12 9 6"></polyline>
@@ -157,6 +172,7 @@ import { computed, h, onMounted, ref } from 'vue';
 import api from '../api';
 import BarChart from '../components/BarChart.vue';
 import DonutChart from '../components/DonutChart.vue';
+import LoadingSkeleton from '../components/LoadingSkeleton.vue';
 import type { Log } from '../types';
 
 type DailyUsage = {
@@ -182,11 +198,16 @@ const costStats = ref({ totalCost: 0, todayCost: 0 });
 const dataMode = ref<'tokens' | 'cost'>('tokens');
 const dailyDays = ref(7);
 const dayOptions = [7, 30];
+const customRangeEnabled = ref(false);
+const customStartDate = ref('');
+const customEndDate = ref('');
 const dailyUsage = ref<DailyUsage[]>([]);
 const dailyCostUsage = ref<DailyUsage[]>([]);
 const modelDist = ref<ModelUsage[]>([]);
 const modelCostDist = ref<ModelUsage[]>([]);
 const recentLogs = ref<Log[]>([]);
+
+const isLoading = ref(true);
 
 const palette = [
   'var(--accent-blue)',
@@ -223,7 +244,7 @@ const modelRanking = computed(() => {
   return modelDist.value.slice(0, 6).map((item, index) => ({
     ...item,
     color: palette[index % palette.length],
-    percent: Math.max(4, Math.round((item.totalTokens / max) * 100)),
+    percent: Math.round((item.totalTokens / max) * 100),
   }));
 });
 
@@ -320,7 +341,7 @@ const modelCostRanking = computed(() => {
   return items.slice(0, 6).map((item, index) => ({
     ...item,
     color: palette[index % palette.length],
-    percent: Math.max(4, Math.round((item.totalCost / max) * 100)),
+    percent: Math.round((item.totalCost / max) * 100),
   }));
 });
 
@@ -330,7 +351,10 @@ const fetchStats = async () => {
 };
 
 const fetchDailyUsage = async () => {
-  const res = await api.get('/logs/stats/daily', { params: { days: dailyDays.value } });
+  const params: any = customRangeEnabled.value && customStartDate.value && customEndDate.value
+    ? { startDate: customStartDate.value, endDate: customEndDate.value }
+    : { days: dailyDays.value };
+  const res = await api.get('/logs/stats/daily', { params });
   dailyUsage.value = res.data;
 };
 
@@ -348,27 +372,51 @@ const fetchCostStats = async () => {
   try {
     const res = await api.get('/logs/stats/cost');
     costStats.value = res.data;
-  } catch {}
+  } catch (e: any) { console.error('Cost stats failed:', e); }
 };
 
 const fetchDailyCost = async () => {
   try {
-    const res = await api.get('/logs/stats/daily-cost', { params: { days: dailyDays.value } });
+    const params: any = customRangeEnabled.value && customStartDate.value && customEndDate.value
+      ? { startDate: customStartDate.value, endDate: customEndDate.value }
+      : { days: dailyDays.value };
+    const res = await api.get('/logs/stats/daily-cost', { params });
     dailyCostUsage.value = res.data;
-  } catch {}
+  } catch (e: any) { console.error('Daily cost failed:', e); }
 };
 
 const fetchModelCosts = async () => {
   try {
     const res = await api.get('/logs/stats/model-costs');
     modelCostDist.value = res.data;
-  } catch {}
+  } catch (e: any) { console.error('Model costs failed:', e); }
 };
 
 const changeDailyRange = async (days: number) => {
+  customRangeEnabled.value = false;
   if (dailyDays.value === days) return;
   dailyDays.value = days;
   await Promise.all([fetchDailyUsage(), fetchDailyCost()]);
+};
+
+const toggleCustomRange = () => {
+  customRangeEnabled.value = !customRangeEnabled.value;
+  if (customRangeEnabled.value) {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 7);
+    customStartDate.value = start.toISOString().slice(0, 10);
+    customEndDate.value = end.toISOString().slice(0, 10);
+    Promise.all([fetchDailyUsage(), fetchDailyCost()]);
+  } else {
+    Promise.all([fetchDailyUsage(), fetchDailyCost()]);
+  }
+};
+
+const fetchCustomRange = () => {
+  if (customRangeEnabled.value && customStartDate.value && customEndDate.value) {
+    Promise.all([fetchDailyUsage(), fetchDailyCost()]);
+  }
 };
 
 const fmtTime = (dateStr: string) => {
@@ -440,11 +488,20 @@ function iconAttrs() {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchStats(), fetchDailyUsage(), fetchModelDistribution(), fetchRecentLogs(), fetchCostStats(), fetchDailyCost(), fetchModelCosts()]);
+  isLoading.value = true;
+  try {
+    await Promise.all([fetchStats(), fetchDailyUsage(), fetchModelDistribution(), fetchRecentLogs(), fetchCostStats(), fetchDailyCost(), fetchModelCosts()]);
+  } finally {
+    isLoading.value = false;
+  }
 });
 </script>
 
 <style scoped>
+.dashboard-loading {
+  padding: 40px 0;
+}
+
 .dashboard-shell {
   display: flex;
   flex-direction: column;
@@ -529,6 +586,33 @@ onMounted(async () => {
   background: var(--bg-card);
   color: var(--text-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ---------- Custom date range ---------- */
+.custom-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.date-input {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.date-input:focus {
+  border-color: var(--accent-blue);
+}
+
+.date-separator {
+  color: var(--text-muted);
+  font-size: 0.72rem;
 }
 
 /* ---------- Metric cards ---------- */

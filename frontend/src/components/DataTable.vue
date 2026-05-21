@@ -8,26 +8,42 @@
               v-for="col in columns"
               :key="col.key"
               :style="{ textAlign: col.align || 'left', width: col.width }"
-            >{{ col.label }}</th>
+              :class="{ sortable: col.sortable !== false }"
+              @click="col.sortable !== false && toggleSort(col.key)"
+            >
+              {{ col.label }}
+              <span v-if="col.sortable !== false && sortBy === col.key" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '↑' : '↓' }}
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, idx) in data" :key="(row as any).id ?? idx">
-            <td
-              v-for="col in columns"
-              :key="col.key"
-              :style="{ textAlign: col.align || 'left' }"
-            >
-              <slot :name="`cell-${col.key}`" :row="row" :value="(row as any)[col.key]">
-                {{ (row as any)[col.key] }}
-              </slot>
-            </td>
-          </tr>
-          <tr v-if="!data.length">
-            <td :colspan="columns.length" class="empty-cell">
-              {{ emptyText }}
-            </td>
-          </tr>
+          <template v-if="loading">
+            <tr v-for="i in skeletonRows" :key="'skel-' + i">
+              <td v-for="col in columns" :key="col.key" :style="{ textAlign: col.align || 'left' }">
+                <div class="skeleton-cell"></div>
+              </td>
+            </tr>
+          </template>
+          <template v-else>
+            <tr v-for="(row, idx) in data" :key="(row as any).id ?? `row-${idx}`">
+              <td
+                v-for="col in columns"
+                :key="col.key"
+                :style="{ textAlign: col.align || 'left' }"
+              >
+                <slot :name="`cell-${col.key}`" :row="row" :value="(row as any)[col.key]">
+                  {{ (row as any)[col.key] }}
+                </slot>
+              </td>
+            </tr>
+            <tr v-if="!data.length && !loading">
+              <td :colspan="columns.length" class="empty-cell">
+                {{ emptyText }}
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -36,20 +52,44 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+
 export interface ColumnDef {
   key: string
   label: string
   align?: 'left' | 'right' | 'center'
   width?: string
+  sortable?: boolean
 }
 
 withDefaults(defineProps<{
   columns: ColumnDef[]
   data: Record<string, any>[]
   emptyText?: string
+  loading?: boolean
+  skeletonRows?: number
 }>(), {
   emptyText: '暂无数据',
+  loading: false,
+  skeletonRows: 5,
 });
+
+const sortBy = ref('');
+const sortOrder = ref<'asc' | 'desc'>('asc');
+
+const emit = defineEmits<{
+  sort: [key: string, order: 'asc' | 'desc']
+}>();
+
+function toggleSort(key: string) {
+  if (sortBy.value === key) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortBy.value = key;
+    sortOrder.value = 'asc';
+  }
+  emit('sort', sortBy.value, sortOrder.value);
+}
 </script>
 
 <style scoped>
@@ -68,6 +108,13 @@ withDefaults(defineProps<{
   text-align: left;
 }
 
+.custom-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-card);
+}
+
 .custom-table th {
   padding: 12px 16px;
   font-size: 0.75rem;
@@ -76,6 +123,21 @@ withDefaults(defineProps<{
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+}
+
+.custom-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.custom-table th.sortable:hover {
+  color: var(--text-primary);
+}
+
+.sort-indicator {
+  margin-left: 4px;
+  font-size: 0.7rem;
 }
 
 .custom-table td {
@@ -99,5 +161,18 @@ withDefaults(defineProps<{
   padding: 40px 16px !important;
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+.skeleton-cell {
+  height: 14px;
+  background: var(--border-subtle);
+  border-radius: 4px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+  100% { opacity: 0.3; }
 }
 </style>

@@ -5,6 +5,7 @@ import axios from 'axios';
 // 前后端分离部署时设置环境变量 VITE_API_BASE_URL=https://api.nexious-api.com/api
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  timeout: 30000,
 });
 
 export const apiBaseURL = api.defaults.baseURL || '/api';
@@ -21,12 +22,13 @@ api.interceptors.request.use((config) => {
 // Handle 401 responses
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('auth_token');
       // Only redirect if not already on auth pages
       if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+        const router = (await import('../router')).default;
+        router.push('/login');
       }
     }
     return Promise.reject(error);

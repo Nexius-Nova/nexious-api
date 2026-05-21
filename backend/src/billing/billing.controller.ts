@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -38,6 +40,8 @@ export class BillingController {
   }
 
   @Post('billing/refresh-all')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'super_admin')
   async refreshAllBalances() {
     return this.billingService.refreshAllBalances();
   }

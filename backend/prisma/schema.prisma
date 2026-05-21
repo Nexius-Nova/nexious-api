@@ -87,6 +87,12 @@ model Log {
   pricingSnapshot  String?   @db.LongText @map("pricing_snapshot") // JSON snapshot of pricing used
   isEstimated      Boolean   @default(false) @map("is_estimated")
   createdAt        DateTime  @default(now())
+
+  @@index([userId])
+  @@index([tokenId])
+  @@index([model])
+  @@index([createdAt])
+  @@index([channelId])
 }
 
 model Conversation {

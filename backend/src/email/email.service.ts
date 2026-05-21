@@ -72,4 +72,48 @@ export class EmailService {
       return true; // Code is stored in memory, dev can read from console
     }
   }
+
+  async sendPasswordChangedNotification(to: string): Promise<boolean> {
+    if (!this.resend) {
+      this.logger.log(`[DEV] Password change notification for ${to}`);
+      return true;
+    }
+
+    try {
+      const from =
+        process.env.EMAIL_FROM ||
+        'Nexious API <onboarding@resend.dev>';
+
+      const { error } = await this.resend.emails.send({
+        from,
+        to,
+        subject: '密码已修改 - Nexious API',
+        html: `
+          <div style="max-width:480px;margin:0 auto;padding:32px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;border-radius:12px;border:1px solid rgba(255,255,255,0.08);">
+            <div style="margin-bottom:28px;">
+              <span style="font-size:18px;font-weight:700;color:#ffffff;">Nexious API</span>
+            </div>
+            <h2 style="color:#ffffff;font-size:22px;margin:0 0 12px;">密码修改通知</h2>
+            <p style="color:#a1a1aa;font-size:15px;line-height:1.6;margin:0 0 24px;">
+              您的 Nexious API 账号密码已于近期被修改。如果这不是您的操作，请立即联系支持团队。
+            </p>
+            <p style="color:#71717a;font-size:13px;line-height:1.5;margin:0;">
+              这是一封自动发送的安全通知邮件，请勿回复。
+            </p>
+          </div>
+        `,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send password change notification to ${to}: ${error.message}`);
+        return false;
+      }
+
+      this.logger.log(`Password change notification sent to ${to}`);
+      return true;
+    } catch (err: any) {
+      this.logger.error(`Password change notification error: ${err.message}`);
+      return false;
+    }
+  }
 }

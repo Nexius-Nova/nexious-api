@@ -6,6 +6,9 @@ import ConsoleLayout from '../layouts/ConsoleLayout.vue';
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior() {
+    return { top: 0 };
+  },
   routes: [
     {
       path: '/login',
@@ -83,6 +86,11 @@ const router = createRouter({
           path: 'api-docs',
           name: 'ApiDocs',
           component: () => import('../views/ApiDocs.vue'),
+        },
+        {
+          path: '/:pathMatch(.*)*',
+          name: 'NotFound',
+          component: () => import('../views/NotFound.vue'),
         },
       ],
     },

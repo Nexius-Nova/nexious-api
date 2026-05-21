@@ -24,10 +24,20 @@ export class KimiAdapter implements ProviderAdapter {
     const root = channel.baseUrl.replace(/\/$/, '').replace(/\/v\d+$/, '');
     const url = config.balanceUrl || `${root}/v1/users/me/balance`;
 
-    const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${channel.apiKey}` },
-      timeout: 10000,
-    });
+    const response = await (async () => {
+      try {
+        return await axios.get(url, {
+          headers: { Authorization: `Bearer ${channel.apiKey}` },
+          timeout: 10000,
+        });
+      } catch (error: any) {
+        const status = error.response?.status;
+        const message = error.response?.data?.error?.message || error.message;
+        throw new Error(
+          `Kimi balance API error${status ? ` (HTTP ${status})` : ''}: ${message}`,
+        );
+      }
+    })();
 
     const data = response.data;
 

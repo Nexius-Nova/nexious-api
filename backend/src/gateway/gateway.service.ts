@@ -118,19 +118,25 @@ export class GatewayService {
           ip,
           token.userId ?? undefined,
         );
+
+        return response.data;
       } else {
-        this.trackStreamUsage(
-          response.data,
-          body.messages || [],
+        // For streaming, log a minimal entry with estimated usage before
+        // returning the raw upstream stream to avoid data races between
+        // the controller's pipe() and our own data listeners.
+        const estimated = this.estimateChatUsage(body.messages || [], '');
+        this.recordLog(
           token.id,
           channel.id,
           body.model,
+          estimated,
           ip,
           token.userId ?? undefined,
-        );
-      }
+          true,
+        ).catch(() => {});
 
-      return response.data;
+        return response.data;
+      }
     } catch (error: any) {
       if (error.response) {
         // Upstream responded with an error status

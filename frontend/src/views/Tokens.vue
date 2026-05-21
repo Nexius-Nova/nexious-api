@@ -14,8 +14,24 @@
       </button>
     </div>
 
+    <!-- Batch Toolbar -->
+    <div v-if="selectedIds.size > 0" class="batch-toolbar glass-panel">
+      <span class="batch-count">已选择 {{ selectedIds.size }} 项</span>
+      <div class="batch-actions">
+        <button class="btn-ghost btn-sm" @click="batchEnable">批量启用</button>
+        <button class="btn-ghost btn-sm" @click="batchDisable">批量禁用</button>
+        <button class="btn-ghost btn-sm danger" @click="batchDelete">批量删除</button>
+      </div>
+    </div>
     <DataTable :columns="columns" :data="tokens" empty-text="暂无令牌数据">
-      <template #cell-name="{ row }">
+      <template #cell-_select="{ row }">
+        <input
+          type="checkbox"
+          :checked="selectedIds.has((row as any).id!)"
+          @change="toggleSelect((row as any).id!)"
+          class="row-checkbox"
+        />
+      </template>      <template #cell-name="{ row }">
         <div class="token-name">{{ row.name }}</div>
         <div class="token-date">创建于 {{ new Date(row.createdAt!).toLocaleDateString() }}</div>
       </template>
@@ -164,6 +180,7 @@ const confirmVisible = ref(false);
 const deletingId = ref<number | null>(null);
 const showModelPicker = ref(false);
 const channels = ref<Channel[]>([]);
+const selectedIds = ref<Set<number>>(new Set());
 
 const form = ref<Partial<Token>>({
   id: null,
@@ -318,7 +335,7 @@ const copyKey = async (key: string) => {
       document.execCommand('copy');
       document.body.removeChild(ta);
     }
-    toast.success('已复制到剪贴板');
+    toast.success(`已复制! curl -H "Authorization: Bearer ${key}" https://nexious-api.com/api/v1/chat/completions`);
   } catch {
     toast.error('复制失败');
   }
@@ -364,6 +381,48 @@ onMounted(() => {
 .header-text p {
   color: var(--text-muted);
   font-size: 0.875rem;
+}
+
+/* Batch Toolbar */
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--radius);
+}
+
+.batch-count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-blue);
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 0.76rem;
+}
+
+.btn-sm.danger {
+  color: var(--accent-red);
+}
+
+.btn-sm.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.row-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-blue);
 }
 
 .token-name {
@@ -618,6 +677,26 @@ onMounted(() => {
   color: var(--text-primary);
   font-family: var(--font-mono, monospace);
   font-size: 0.8rem;
+}
+
+.model-empty {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px 10px;
+}
+
+/* Transition */
+.drop-enter-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.drop-leave-active {
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+.drop-enter-from,
+.drop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .model-empty {

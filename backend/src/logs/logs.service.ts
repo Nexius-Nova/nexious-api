@@ -84,7 +84,7 @@ export class LogsService {
     // Convert back to UTC for Prisma query
     const todayStartUtc = new Date(todayStart.getTime() - beijingOffset);
 
-    const [totalTokens, todayAgg, totalRequests, todayLogs] = await Promise.all(
+    const [totalTokens, todayAgg, totalRequests] = await Promise.all(
       [
         this.prisma.log.aggregate({
           where: userWhere,
@@ -100,15 +100,11 @@ export class LogsService {
           _count: { id: true },
         }),
         this.prisma.log.count({ where: userWhere }),
-        this.prisma.log.findMany({
-          where: { ...userWhere, createdAt: { gte: todayStartUtc } },
-          select: { totalTokens: true },
-        }),
       ],
     );
 
     const todayTotalTokens = todayAgg._sum.totalTokens || 0;
-    const todayRequestCount = todayLogs.length;
+    const todayRequestCount = todayAgg._count.id || 0;
     const avgTokensPerRequest =
       todayRequestCount > 0
         ? Math.round(todayTotalTokens / todayRequestCount)

@@ -5,7 +5,10 @@
       :viewBox="`0 0 ${svgWidth} ${height}`"
       preserveAspectRatio="xMidYMid meet"
       class="bar-chart"
+      role="img"
     >
+      <title>柱状图</title>
+      <desc>数据可视化柱状图，展示各项指标对比</desc>
       <!-- Grid lines -->
       <line
         v-for="(y, i) in gridLines"

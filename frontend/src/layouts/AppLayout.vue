@@ -17,20 +17,40 @@
           </router-link>
         </div>
 
-        <nav class="topnav-nav">
+        <nav class="topnav-nav" :class="{ 'mobile-open': mobileMenuOpen }">
           <router-link
             v-for="item in navItems"
             :key="item.path"
             :to="item.path"
             class="topnav-link"
             :class="{ active: isActive(item.path) }"
+            @click="mobileMenuOpen = false"
           >
             <component :is="item.icon" class="tn-icon" />
             <span>{{ item.label }}</span>
           </router-link>
         </nav>
 
+        <!-- Mobile overlay -->
+        <div v-if="mobileMenuOpen" class="mobile-nav-overlay" @click="mobileMenuOpen = false"></div>
+
         <div class="topnav-right">
+          <!-- Hamburger button (mobile only) -->
+          <button
+            class="mobile-menu-btn"
+            @click="mobileMenuOpen = !mobileMenuOpen"
+            aria-label="Toggle menu"
+          >
+            <svg v-if="!mobileMenuOpen" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+            <svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
           <button
             class="topnav-icon-btn"
             @click="appStore.toggleTheme"
@@ -210,6 +230,7 @@ const appStore = useAppStore();
 const authStore = useAuthStore();
 
 const userMenuOpen = ref(false);
+const mobileMenuOpen = ref(false);
 
 function closeUserMenu(e: MouseEvent) {
   const target = e.target as HTMLElement;
@@ -635,5 +656,75 @@ const navItems = [
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+/* ============ Mobile Menu ============ */
+.mobile-menu-btn {
+  display: none;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 18;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .topnav-nav {
+    position: fixed;
+    top: 52px;
+    left: 0;
+    right: 0;
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-direction: column;
+    padding: 12px 16px;
+    gap: 2px;
+    z-index: 19;
+    transform: translateY(-100%);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    pointer-events: none;
+  }
+
+  .topnav-nav.mobile-open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .topnav-nav .topnav-link {
+    width: 100%;
+    padding: 12px 14px;
+  }
+
+  .mobile-nav-overlay {
+    display: block;
+  }
+
+  .topnav-right .topnav-link[style] {
+    display: none;
+  }
 }
 </style>

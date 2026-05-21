@@ -4,13 +4,16 @@
     <aside class="config-panel glass-panel">
       <!-- Conversation Selector -->
       <div class="conv-selector" ref="conversationDropdownRef">
-        <button class="conv-trigger" @click="showConversationDropdown = !showConversationDropdown">
+        <button class="conv-trigger" @click="showConversationDropdown = !showConversationDropdown" aria-label="对话列表">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span class="conv-title" :class="{ placeholder: !conversationId }">{{ conversationTitle || '新对话' }}</span>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-sm" :class="{ open: showConversationDropdown }"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <button class="conv-new-btn" title="新建对话" @click="newConversation">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="conv-new-btn" title="导出对话" @click="exportConversation">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
         <Teleport to="body">
           <div v-if="showConversationDropdown" class="conversation-dropdown glass-panel" :style="convDropdownStyle">
@@ -53,7 +56,7 @@
         <div class="config-field">
           <label class="field-label">模型</label>
           <div class="select-wrapper" ref="modelDropdownRef">
-            <div ref="modelTriggerRef" class="model-select-trigger" @click="toggleModelDropdown">
+            <div ref="modelTriggerRef" class="model-select-trigger" @click="toggleModelDropdown" aria-label="选择模型">
               <ModelIcon v-if="selectedModel" :name="selectedModel" :size="18" />
               <span :class="{ placeholder: !selectedModel }">{{ selectedModel || '选择模型...' }}</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron" :class="{ open: showModelDropdown }"><polyline points="6 9 12 15 18 9"/></svg>
@@ -87,7 +90,15 @@
 
         <!-- System Prompt -->
         <div class="config-field">
-          <label class="field-label">系统提示词</label>
+          <label class="field-label">
+            <span>系统提示词</span>
+            <select v-model="systemPrompt" class="preset-select" title="选择预设提示词模板">
+              <option value="你是一个有帮助的 AI 助手。">默认助手</option>
+              <option value="你是一个资深软件工程师，擅长多种编程语言和系统设计。请提供清晰、有注释的代码示例。">代码专家</option>
+              <option value="你是一个专业翻译，请将用户输入准确翻译为目标语言，保持原文风格和语气。">翻译官</option>
+              <option value="你是一个创意作家，擅长故事创作、文案撰写和内容策划。请用富有感染力的语言回复。">创意作家</option>
+            </select>
+          </label>
           <FormTextarea v-model="systemPrompt" :rows="4" placeholder="你是一个有帮助的 AI 助手..." label="" />
         </div>
 
@@ -145,7 +156,7 @@
       <div class="chat-bg"></div>
 
       <!-- Messages -->
-      <div class="chat-messages" ref="messagesContainer">
+      <div class="chat-messages" ref="messagesContainer" @scroll="handleChatScroll">
         <div v-if="messages.length === 0" class="chat-welcome">
           <div class="welcome-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -163,7 +174,10 @@
           :class="[msg.role, { 'is-streaming': idx === messages.length - 1 && isTyping }]"
         >
           <div class="message-avatar">
-            <template v-if="msg.role === 'assistant'">
+            <template v-if="msg.role === 'error'">
+              <div class="avatar-error"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            </template>
+            <template v-else-if="msg.role === 'assistant'">
               <ModelIcon v-if="selectedModel" :name="selectedModel" :size="20" />
               <div v-else class="avatar-fallback">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -200,7 +214,7 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
               </button>
               <button
-                v-if="msg.role === 'assistant'"
+                v-if="msg.role === 'assistant' || msg.role === 'user'"
                 class="msg-action-btn"
                 title="复制"
                 @click="copyMessage(msg.content)"
@@ -235,6 +249,16 @@
             </div>
           </div>
         </div>
+
+        <!-- Scroll to Bottom Button -->
+        <button
+          v-if="showScrollButton"
+          class="scroll-bottom-btn"
+          aria-label="滚动到底部"
+          @click="scrollToBottom"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
       </div>
 
       <!-- Input Area -->
@@ -246,7 +270,8 @@
             class="chat-textarea"
             :rows="1"
             placeholder="输入消息..."
-            @keydown.enter.exact.prevent="sendMessage"
+            aria-label="输入消息"
+            @keydown.enter="handleEnterKey"
             @input="autoResize"
             :disabled="isGenerating"
           ></textarea>
@@ -255,6 +280,7 @@
             :class="{ active: chatInput.trim() && !isGenerating, generating: isGenerating }"
             @click="sendMessage"
             :disabled="!chatInput.trim() || isGenerating"
+            aria-label="发送消息"
           >
             <svg v-if="!isGenerating" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
             <div v-else class="send-spinner"></div>
@@ -263,6 +289,7 @@
             v-if="isGenerating"
             class="stop-btn-inline"
             title="停止生成"
+            aria-label="停止生成"
             @click="stopGeneration"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
@@ -378,6 +405,7 @@ import FormInput from '../components/FormInput.vue';
 import FormTextarea from '../components/FormTextarea.vue';
 import FormNumber from '../components/FormNumber.vue';
 import { useToast } from '../composables/useToast';
+import LoadingSkeleton from '../components/LoadingSkeleton.vue';
 
 const toast = useToast();
 
@@ -459,7 +487,7 @@ const selectFirstModel = () => {
 
 // ── Chat State ──
 interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'error';
   content: string;
   displayContent?: string;
   timestamp: number;
@@ -470,9 +498,19 @@ const messages = ref<ChatMessage[]>([]);
 const chatInput = ref('');
 const isGenerating = ref(false);
 const isTyping = ref(false);
+const isPageLoading = ref(true);
 const messagesContainer = ref<HTMLElement | null>(null);
 const chatInputEl = ref<HTMLTextAreaElement | null>(null);
 let abortGenerating = false;
+let saveErrorDebounce: ReturnType<typeof setTimeout> | null = null;
+
+// ── Scroll-to-bottom ──
+const showScrollButton = ref(false);
+const handleChatScroll = () => {
+  const el = messagesContainer.value;
+  if (!el) return;
+  showScrollButton.value = el.scrollHeight - el.scrollTop - el.clientHeight > 150;
+};
 
 // ── Conversation State ──
 const conversationId = ref<number | null>(null);
@@ -482,6 +520,7 @@ const showConversationDropdown = ref(false);
 const conversationDropdownRef = ref<HTMLElement | null>(null);
 let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let isSaving = false;
+let saveErrorShown = false;
 
 watch(messages, () => {
   if (messages.value.length === 0) return;
@@ -529,14 +568,23 @@ const fetchChannels = async () => {
   }
 };
 
+const handleGlobalKeydown = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    toggleModelDropdown();
+  }
+};
+
 onMounted(async () => {
   await fetchChannels();
   await fetchConversations();
   document.addEventListener('mousedown', handleClickOutside);
+  document.addEventListener('keydown', handleGlobalKeydown);
 });
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleClickOutside);
+  document.removeEventListener('keydown', handleGlobalKeydown);
 });
 
 const handleClickOutside = (e: MouseEvent) => {
@@ -557,6 +605,14 @@ const handleClickOutside = (e: MouseEvent) => {
 };
 
 // ── Send Message ──
+const handleEnterKey = (e: KeyboardEvent) => {
+  if (!e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+  // Shift+Enter: let default behavior (newline) happen
+};
+
 const sendMessage = () => {
   const text = chatInput.value.trim();
   if (!text || isGenerating.value) return;
@@ -582,11 +638,12 @@ const doSend = async (text: string) => {
   messages.value.push(userMsg);
   scrollToBottom();
 
-  // Build messages array with multimodal support
+  // Build messages array with multimodal support — only attach image to LAST user message
   const formattedMessages = [
     { role: 'system', content: systemPrompt.value },
-    ...messages.value.map(m => {
-      if (m.role === 'user' && imageUrl.value) {
+    ...messages.value.map((m, idx, arr) => {
+      const isLastUser = m.role === 'user' && idx === arr.length - 1 && arr[idx].role === 'user';
+      if (isLastUser && imageUrl.value) {
         return {
           role: 'user',
           content: [
@@ -651,6 +708,7 @@ const doStreamSend = async (payload: any) => {
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     };
     messages.value.push(aiMsg);
+    isTyping.value = true;
     const msgIdx = messages.value.length - 1;
     scrollToBottom();
 
@@ -707,7 +765,7 @@ const doStreamSend = async (payload: any) => {
     if (err.name === 'AbortError') return;
     const errorContent = err.message || '流式请求失败';
     const errorMsg: ChatMessage = {
-      role: 'assistant',
+      role: 'error',
       content: `❌ 错误: ${errorContent}`,
       displayContent: `❌ 错误: ${errorContent}`,
       timestamp: Date.now(),
@@ -767,7 +825,7 @@ const doRegularSend = async (payload: any) => {
   } catch (err: any) {
     const errorContent = err.response?.data?.error?.message || err.message || '请求失败';
     const errorMsg: ChatMessage = {
-      role: 'assistant',
+      role: 'error',
       content: `❌ 错误: ${errorContent}`,
       displayContent: `❌ 错误: ${errorContent}`,
       timestamp: Date.now(),
@@ -832,6 +890,7 @@ const copyMessage = async (text: string) => {
 };
 
 const editMessage = (idx: number) => {
+  if (!confirm("编辑此消息将删除后续所有对话，确定继续？")) return;
   chatInput.value = messages.value[idx].content;
   // Remove from this message onward
   messages.value = messages.value.slice(0, idx);
@@ -842,6 +901,7 @@ const editMessage = (idx: number) => {
 };
 
 const deleteMessage = (idx: number) => {
+  if (!confirm("确定删除此消息及后续对话？")) return;
   messages.value = messages.value.slice(0, idx);
 };
 
@@ -868,7 +928,14 @@ const saveConversation = async () => {
       return;
     }
     await api.put(`/conversations/${conversationId.value}`, buildSavePayload());
-  } catch { /* silent */ }
+  } catch {
+    // Debounce error toasts to avoid spam during streaming
+    if (!saveErrorShown) {
+      saveErrorShown = true;
+      toast.error('自动保存失败');
+      setTimeout(() => { saveErrorShown = false; }, 10000);
+    }
+  }
   finally {
     isSaving = false;
   }
@@ -941,6 +1008,24 @@ const newConversation = () => {
   showConversationDropdown.value = false;
 };
 
+const exportConversation = () => {
+  if (messages.value.length === 0) {
+    toast.show('没有可导出的对话', 'warning');
+    return;
+  }
+  const md = messages.value.map(m => {
+    const roleLabel = m.role === 'user' ? 'User' : m.role === 'assistant' ? selectedModel.value : 'Error';
+    return `### ${roleLabel}\n\n${m.content}\n`;
+  }).join('\n---\n\n');
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `conversation-${Date.now()}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success('对话已导出');
+};
+
 const deleteConversation = async (id: number, event: Event) => {
   event.stopPropagation();
   try {
@@ -959,7 +1044,10 @@ const deleteConversation = async (id: number, event: Event) => {
 const scrollToBottom = () => {
   nextTick(() => {
     const el = messagesContainer.value;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+      showScrollButton.value = false;
+    }
   });
 };
 
@@ -1302,6 +1390,18 @@ const renderContent = (text: string): string => {
   border-radius: 4px;
 }
 
+.preset-select {
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  cursor: pointer;
+  max-width: 90px;
+  text-overflow: ellipsis;
+}
+
 /* Model Selector */
 .select-wrapper {
   position: relative;
@@ -1576,6 +1676,19 @@ const renderContent = (text: string): string => {
   color: white;
 }
 
+.avatar-error {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent-red);
+}
+
 .avatar-fallback {
   width: 28px;
   height: 28px;
@@ -1601,6 +1714,15 @@ const renderContent = (text: string): string => {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.08));
   border: 1px solid rgba(59, 130, 246, 0.15);
   border-radius: 12px 4px 12px 12px;
+}
+
+.message-wrapper.error .message-bubble {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--accent-red);
+}
+.message-wrapper.error .message-avatar {
+  color: var(--accent-red);
 }
 
 .bubble-content {
@@ -2002,5 +2124,41 @@ const renderContent = (text: string): string => {
 
 .usage-bar-fill.total {
   background: var(--accent-blue);
+}
+
+/* Loading Overlay */
+.page-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-app);
+}
+
+/* Scroll to Bottom Button */
+.scroll-bottom-btn {
+  position: sticky;
+  bottom: 8px;
+  align-self: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s;
+  z-index: 10;
+}
+.scroll-bottom-btn:hover {
+  color: var(--accent-blue);
+  border-color: var(--border-accent);
+  background: var(--bg-overlay);
 }
 </style>

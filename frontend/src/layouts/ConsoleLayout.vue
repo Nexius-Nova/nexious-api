@@ -1,7 +1,29 @@
 <template>
   <div class="console-layout">
+    <!-- Mobile hamburger menu button -->
+    <button class="mobile-hamburger" @click="appStore.toggleSidebar" aria-label="Toggle sidebar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <template v-if="appStore.sidebarCollapsed">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </template>
+        <template v-else>
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </template>
+      </svg>
+    </button>
+
+    <!-- Mobile overlay -->
+    <div
+      v-if="!appStore.sidebarCollapsed"
+      class="sidebar-mobile-overlay"
+      @click="appStore.sidebarCollapsed = true"
+    ></div>
+
     <!-- Sidebar -->
-    <aside class="sidebar" :class="{ collapsed }">
+    <aside class="sidebar" :class="{ collapsed: appStore.sidebarCollapsed }">
       <div class="sidebar-header">
         <router-link to="/console" class="sidebar-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -12,9 +34,9 @@
           </svg>
           <span>控制台</span>
         </router-link>
-        <button class="collapse-btn" @click="collapsed = !collapsed" :title="collapsed ? '展开侧边栏' : '折叠侧边栏'">
+        <button class="collapse-btn" @click="appStore.toggleSidebar" :title="appStore.sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline v-if="collapsed" points="9 18 15 12 9 6"/>
+            <polyline v-if="appStore.sidebarCollapsed" points="9 18 15 12 9 6"/>
             <polyline v-else points="15 18 9 12 15 6"/>
           </svg>
         </button>
@@ -27,7 +49,7 @@
           :to="item.path"
           class="nav-item"
           :class="{ active: isActive(item.path) }"
-          :title="collapsed ? item.label : undefined"
+          :title="appStore.sidebarCollapsed ? item.label : undefined"
         >
           <div class="nav-indicator"></div>
           <component :is="item.icon" class="nav-icon" />
@@ -43,7 +65,7 @@
             :to="item.path"
             class="nav-item"
             :class="{ active: isActive(item.path) }"
-            :title="collapsed ? item.label : undefined"
+            :title="appStore.sidebarCollapsed ? item.label : undefined"
           >
             <div class="nav-indicator"></div>
             <component :is="item.icon" class="nav-icon" />
@@ -53,7 +75,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <router-link to="/" class="back-link" :title="collapsed ? '返回首页' : undefined">
+        <router-link to="/" class="back-link" :title="appStore.sidebarCollapsed ? '返回首页' : undefined">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
           <span>返回首页</span>
         </router-link>
@@ -76,13 +98,14 @@
 </template>
 
 <script setup lang="ts">
-import { h, ref } from 'vue';
+import { h } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '../store/auth';
+import { useAppStore } from '../store/app';
 
 const route = useRoute();
-const collapsed = ref(false);
 const authStore = useAuthStore();
+const appStore = useAppStore();
 
 const isActive = (path: string) => {
   if (path === '/console') return route.path === '/console';
@@ -177,6 +200,37 @@ const navItems = [
   display: flex;
   height: 100%;
   width: 100%;
+}
+
+/* ============ Mobile hamburger ============ */
+.mobile-hamburger {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 30;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.mobile-hamburger:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 19;
 }
 
 /* ============ Sidebar ============ */
@@ -413,5 +467,40 @@ const navItems = [
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mobile-hamburger {
+    display: flex;
+  }
+
+  .sidebar-mobile-overlay {
+    display: block;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 25;
+    width: 240px;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar:not(.collapsed) {
+    transform: translateX(0);
+  }
+
+  .sidebar.collapsed {
+    width: 240px;
+    transform: translateX(-100%);
+  }
+
+  .console-main {
+    padding-top: 0;
+  }
 }
 </style>

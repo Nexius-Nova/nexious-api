@@ -143,23 +143,43 @@
                 required
               />
 
-              <FormInput
-                v-model="form.password"
-                label="密码"
-                type="password"
-                :placeholder="mode === 'login' ? '请输入密码' : '至少 6 位字符'"
-                :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
-                required
-              />
-              <FormInput
-                v-if="mode === 'register'"
-                v-model="form.confirmPassword"
-                label="确认密码"
-                type="password"
-                placeholder="请再次输入密码"
-                autocomplete="new-password"
-                required
-              />
+              <div class="password-wrap">
+                <FormInput
+                  v-model="form.password"
+                  label="密码"
+                  :type="passwordVisible ? 'text' : 'password'"
+                  :placeholder="mode === 'login' ? '请输入密码' : '至少 6 位字符'"
+                  :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
+                  required
+                />
+                <button type="button" class="password-toggle" @click="passwordVisible = !passwordVisible" :aria-label="passwordVisible ? '隐藏密码' : '显示密码'" tabindex="-1">
+                  <svg v-if="passwordVisible" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                  <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+              </div>
+              <!-- Password strength indicator (register only) -->
+              <div v-if="mode === 'register' && form.password" class="password-strength">
+                <div class="strength-bar-bg">
+                  <div class="strength-bar-fill" :style="{ width: (passwordStrength.score / 5) * 100 + '%', background: passwordStrength.color }"></div>
+                </div>
+                <span class="strength-label" :style="{ color: passwordStrength.color }">{{ passwordStrength.label }}</span>
+              </div>
+              <div v-if="mode === 'register'" class="password-wrap">
+                <FormInput
+                  v-model="form.confirmPassword"
+                  label="确认密码"
+                  :type="passwordVisible ? 'text' : 'password'"
+                  placeholder="请再次输入密码"
+                  autocomplete="new-password"
+                  required
+                />
+              </div>
             </template>
 
             <!-- Login: forgot password link -->
@@ -227,6 +247,24 @@ const forgotMode = ref(false);
 const loading = ref(false);
 const error = ref('');
 const success = ref('');
+const passwordVisible = ref(false);
+
+// Password strength
+const passwordStrength = computed(() => {
+  const pwd = form.password;
+  if (!pwd) return { score: 0, label: '', color: '' };
+  let score = 0;
+  if (pwd.length >= 6) score++;
+  if (pwd.length >= 10) score++;
+  if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++;
+  if (/\d/.test(pwd)) score++;
+  if (/[^a-zA-Z0-9]/.test(pwd)) score++;
+  if (score <= 1) return { score, label: '弱', color: '#ef4444' };
+  if (score <= 2) return { score, label: '弱', color: '#f59e0b' };
+  if (score <= 3) return { score, label: '中', color: '#f59e0b' };
+  if (score === 4) return { score, label: '强', color: '#10b981' };
+  return { score, label: '强', color: '#10b981' };
+});
 
 // Captcha (login only)
 const captchaRef = ref<InstanceType<typeof SlideCaptcha> | null>(null);
@@ -334,9 +372,7 @@ function resetFeedback() {
 function switchMode(nextMode: AuthMode) {
   mode.value = nextMode;
   resetFeedback();
-  form.username = '';
   form.password = '';
-  form.email = '';
   form.confirmPassword = '';
   form.verifyCode = '';
   captchaToken.value = '';
@@ -426,11 +462,13 @@ async function handleRegister() {
 
   try {
     await authStore.register(form.username, form.email, form.password, form.verifyCode);
-    toast.success('注册成功，即将返回登录');
     // Clear countdown on success
     codeCountdown.value = 0;
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-    setTimeout(() => switchMode('login'), 1200);
+    // Auto-login after successful registration
+    await authStore.login(form.username, form.password);
+    toast.success('注册成功，已自动登录');
+    setTimeout(() => router.push('/console'), 300);
   } catch (e: any) {
     const msg = e.response?.data?.message || '注册失败，请稍后再试';
     error.value = msg;
@@ -444,8 +482,7 @@ async function handleRegister() {
 function enterForgotMode() {
   resetFeedback();
   forgotMode.value = true;
-  form.username = '';
-  form.email = '';
+  // Keep username and email, clear password/code fields
   form.password = '';
   form.confirmPassword = '';
   form.verifyCode = '';
@@ -456,7 +493,6 @@ function enterForgotMode() {
 function exitForgotMode() {
   forgotMode.value = false;
   resetFeedback();
-  form.email = '';
   form.password = '';
   form.confirmPassword = '';
   form.verifyCode = '';
@@ -727,6 +763,65 @@ async function handleForgotPassword() {
 
 .email-input-wrap :deep(.form-group) {
   margin-bottom: 0;
+}
+
+/* ── 密码可见性切换 ── */
+.password-wrap {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 34px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #71717a);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.password-toggle:hover {
+  color: var(--text-secondary, #a1a1aa);
+}
+
+/* ── 密码强度指示器 ── */
+.password-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -10px;
+  margin-bottom: 16px;
+}
+
+.strength-bar-bg {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+[data-theme='light'] .strength-bar-bg {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.strength-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.strength-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .btn-send-code {

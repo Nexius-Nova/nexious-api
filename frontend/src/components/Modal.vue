@@ -1,26 +1,41 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal-overlay" @click.self="$emit('close')">
-      <div class="modal-panel glass-panel animate-fade-in" :style="{ maxWidth: width }">
-        <div class="modal-header">
-          <slot name="header">
-            <h3>{{ title }}</h3>
-          </slot>
-          <button class="close-btn" @click="$emit('close')">&times;</button>
-        </div>
-        <div class="modal-body">
-          <slot></slot>
-        </div>
-        <div v-if="$slots.footer" class="modal-footer">
-          <slot name="footer"></slot>
+    <Transition name="modal-fade">
+      <div
+        v-if="visible"
+        ref="overlayRef"
+        class="modal-overlay"
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        @click.self="$emit('close')"
+        @keydown.escape="$emit('close')"
+        @keydown="trapFocus"
+      >
+        <div class="modal-panel glass-panel" :style="{ maxWidth: width }">
+          <div class="modal-header">
+            <slot name="header">
+              <h3 :id="titleId">{{ title }}</h3>
+            </slot>
+            <button class="close-btn" @click="$emit('close')">&times;</button>
+          </div>
+          <div class="modal-body">
+            <slot></slot>
+          </div>
+          <div v-if="$slots.footer" class="modal-footer">
+            <slot name="footer"></slot>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{
+import { ref, watch, onUnmounted, nextTick } from 'vue';
+
+const props = withDefaults(defineProps<{
   visible: boolean
   title?: string
   width?: string
@@ -31,6 +46,50 @@ withDefaults(defineProps<{
 defineEmits<{
   close: []
 }>();
+
+const overlayRef = ref<HTMLElement | null>(null);
+const titleId = `modal-title-${Math.random().toString(36).slice(2, 9)}`;
+
+// Scroll lock on body
+watch(() => props.visible, (val) => {
+  if (val) {
+    document.body.style.overflow = 'hidden';
+    nextTick(() => {
+      // Focus the modal wrapper so it can receive keydown events for Escape/Tab
+      overlayRef.value?.focus();
+    });
+  } else {
+    document.body.style.overflow = '';
+  }
+});
+
+onUnmounted(() => {
+  document.body.style.overflow = '';
+});
+
+// Focus trap: keep Tab inside the modal
+function trapFocus(e: KeyboardEvent) {
+  if (e.key !== 'Tab') return;
+  const panel = overlayRef.value?.querySelector('.modal-panel');
+  if (!panel) return;
+  const focusable = panel.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey) {
+    if (document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -98,5 +157,29 @@ defineEmits<{
   justify-content: flex-end;
   gap: 10px;
   padding: 0 24px 20px;
+}
+
+/* Transition: fade + slight scale */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-active .modal-panel,
+.modal-fade-leave-active .modal-panel {
+  transition: transform 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-from .modal-panel {
+  transform: scale(0.95);
+}
+
+.modal-fade-leave-to .modal-panel {
+  transform: scale(0.95);
 }
 </style>

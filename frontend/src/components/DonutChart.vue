@@ -6,7 +6,10 @@
       :width="size"
       :height="size"
       class="donut-svg"
+      role="img"
     >
+      <title>环形图</title>
+      <desc>数据可视化环形图，展示各部分占比</desc>
       <!-- Background circle -->
       <circle
         :cx="cx"
