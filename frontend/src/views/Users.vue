@@ -124,7 +124,7 @@ const columns: ColumnDef[] = [
   { key: 'role', label: '角色' },
   { key: 'status', label: '状态' },
   { key: 'createdAt', label: '创建时间' },
-  { key: 'actions', label: '操作', align: 'right' },
+  { key: 'actions', label: '操作', align: 'right', sortable: false },
 ];
 
 function canEdit(user: UserItem): boolean {

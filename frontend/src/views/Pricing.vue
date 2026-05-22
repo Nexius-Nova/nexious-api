@@ -181,7 +181,7 @@ const columns: ColumnDef[] = [
   { key: 'inputPricePer1M', label: '输入价格' },
   { key: 'outputPricePer1M', label: '输出价格' },
   { key: 'currency', label: '币种' },
-  { key: 'actions', label: '操作', align: 'right' },
+  { key: 'actions', label: '操作', align: 'right', sortable: false },
 ];
 
 const modelCountHint = computed(() => {

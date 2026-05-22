@@ -201,7 +201,7 @@ const columns: ColumnDef[] = [
   { key: 'quota', label: '已用额度' },
   { key: 'status', label: '状态' },
   { key: 'expiresAt', label: '过期时间' },
-  { key: 'actions', label: '操作', align: 'right' },
+  { key: 'actions', label: '操作', align: 'right', sortable: false },
 ];
 
 const availableModels = computed(() => {

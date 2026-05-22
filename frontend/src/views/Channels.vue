@@ -338,14 +338,14 @@ const syncFormFromModelsList = () => {
 
 const columns: ColumnDef[] = [
   { key: '_select', label: '', width: '40px', sortable: false },
-  { key: 'type', label: '提供商' },
+  { key: 'type', label: '提供商', sortKey: 'name' },
   { key: 'status', label: '状态' },
   { key: 'visibility', label: '可见性' },
   { key: 'baseUrl', label: '基础 URL' },
   { key: 'models', label: '模型' },
   { key: 'weight', label: '权重' },
-  { key: 'balance', label: '余额' },
-  { key: 'actions', label: '操作', align: 'right' },
+  { key: 'balance', label: '余额', sortKey: 'lastBalance' },
+  { key: 'actions', label: '操作', align: 'right', sortable: false },
 ];
 
 const maxWeight = computed(() => Math.max(...channels.value.map((c) => c.weight), 1));
